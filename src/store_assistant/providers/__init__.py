@@ -7,6 +7,7 @@ from store_assistant.providers.embeddings import (
     LocalHashEmbeddingProvider,
 )
 from store_assistant.providers.llm import (
+    AmazonBedrockLLM,
     GeneratedAnswer,
     LLMError,
     LLMProvider,
@@ -29,6 +30,7 @@ from store_assistant.providers.vector_store import (
 )
 
 __all__ = [
+    "AmazonBedrockLLM",
     "AmazonTitanEmbeddingProvider",
     "EmbeddingError",
     "EmbeddingProvider",
