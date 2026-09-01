@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import json
 from hashlib import sha256
 from pathlib import Path
 from urllib.parse import urlencode
@@ -11,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from store_assistant.answering import AnswerService
 from store_assistant.auth import MockAuthProvider, UserContext
+from store_assistant.feedback import SQLiteFeedbackRepository
 from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
 from store_assistant.providers.llm import LocalExtractiveLLM
 from store_assistant.providers.reranking import LocalLexicalReranker
@@ -29,7 +31,9 @@ NOW = 1_700_000_000
 SECRET = "local-signing-secret"
 
 
-def _handler(tmp_path: Path) -> SlackCommandHandler:
+def _handler(
+    tmp_path: Path, feedback: SQLiteFeedbackRepository | None = None
+) -> SlackCommandHandler:
     embeddings = LocalHashEmbeddingProvider(dimensions=32)
     store = InMemoryVectorStore(dimension=32)
     texts = ("Brooklyn has 12 cartons of oat milk", "Manhattan has 3 cartons of oat milk")
@@ -54,6 +58,7 @@ def _handler(tmp_path: Path) -> SlackCommandHandler:
         assistant,
         SlackSignatureVerifier(SECRET, clock=lambda: NOW),
         {"U123": "brooklyn-token"},
+        feedback,
     )
 
 
@@ -74,6 +79,7 @@ def test_slack_command_returns_cited_store_isolated_answer(tmp_path: Path) -> No
     assert "3 cartons" not in response.text
     assert "Sources: delivery-brooklyn" in response.text
     assert "Request ID: request-1" in response.text
+    assert response.as_dict()["blocks"]
 
 
 @pytest.mark.parametrize(
@@ -121,3 +127,31 @@ def test_slack_router_exposes_signed_command_endpoint(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["response_type"] == "ephemeral"
     assert "12 cartons" in response.json()["text"]
+
+
+def test_slack_interaction_persists_signed_feedback(tmp_path: Path) -> None:
+    feedback = SQLiteFeedbackRepository(tmp_path / "feedback.sqlite3")
+    app = FastAPI()
+    app.include_router(create_slack_router(_handler(tmp_path, feedback)))
+    payload = {
+        "user": {"id": "U123"},
+        "actions": [{"action_id": "feedback_down", "value": "request-1"}],
+    }
+    body = urlencode({"payload": json.dumps(payload)}).encode()
+    timestamp, signature = _signed(body)
+
+    response = TestClient(app).post(
+        "/slack/interactions",
+        content=body,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Slack-Request-Timestamp": timestamp,
+            "X-Slack-Signature": signature,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["text"] == "Thanks for your feedback."
+    saved = feedback.get(request_id="request-1", user_id="U123")
+    assert saved is not None and saved.rating.value == "down"
+    feedback.close()

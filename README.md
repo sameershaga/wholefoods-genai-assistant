@@ -140,6 +140,10 @@ Sources: delivery:DLV-BK-1001:0
 Request ID: <uuid>
 ```
 
+The response includes 👍/👎 buttons. Configure Slack's Interactivity request URL
+as `POST /slack/interactions`; signed button actions are persisted to the local
+feedback repository under the authorized Slack user ID.
+
 ## Ingestion pipeline
 
 All ingestors emit a common `DocumentChunk`. Delivery JSON is chunked around

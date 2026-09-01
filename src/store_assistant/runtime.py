@@ -201,6 +201,7 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
             assistant,
             SlackSignatureVerifier(config.slack_signing_secret),
             config.slack_user_tokens,
+            feedback,
         )
     return create_app(assistant, auth, feedback, slack_handler=slack_handler)
 
