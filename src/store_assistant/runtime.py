@@ -19,6 +19,7 @@ from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
 from store_assistant.providers.llm import LocalExtractiveLLM
 from store_assistant.providers.reranking import LocalLexicalReranker
 from store_assistant.providers.vector_store import InMemoryVectorStore, VectorRecord
+from store_assistant.query_routing import infer_source_type
 from store_assistant.request_logging import JSONLRequestLogRepository
 from store_assistant.retrieval import RetrievalService
 from store_assistant.services import AssistantService, AuthenticatedRetrievalService
@@ -89,7 +90,7 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
     )
     retrieval = RetrievalService(embeddings, vector_store, LocalLexicalReranker())
     assistant = AssistantService(
-        AuthenticatedRetrievalService(auth, retrieval),
+        AuthenticatedRetrievalService(auth, retrieval, source_router=infer_source_type),
         AnswerService(LocalExtractiveLLM()),
         JSONLRequestLogRepository(config.state_directory / "requests.jsonl"),
     )

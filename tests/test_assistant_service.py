@@ -10,6 +10,7 @@ from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
 from store_assistant.providers.llm import LocalExtractiveLLM
 from store_assistant.providers.reranking import LocalLexicalReranker
 from store_assistant.providers.vector_store import InMemoryVectorStore, VectorRecord
+from store_assistant.query_routing import infer_source_type
 from store_assistant.request_logging import JSONLRequestLogRepository
 from store_assistant.retrieval import RetrievalService
 from store_assistant.services import (
@@ -18,9 +19,7 @@ from store_assistant.services import (
 )
 
 
-def _service(tmp_path: Path) -> tuple[
-    AssistantService, JSONLRequestLogRepository
-]:
+def _service(tmp_path: Path) -> tuple[AssistantService, JSONLRequestLogRepository]:
     embeddings = LocalHashEmbeddingProvider(dimensions=64)
     store = InMemoryVectorStore(dimension=64)
     texts = [
@@ -33,16 +32,32 @@ def _service(tmp_path: Path) -> tuple[
                 document_id=f"delivery-{store_id.lower()}",
                 text=text,
                 embedding=embedding,
-                metadata={"store_id": store_id, "sku": "OAT001"},
+                metadata={
+                    "store_id": store_id,
+                    "sku": "OAT001",
+                    "source_type": "delivery_log",
+                },
             )
             for text, embedding, store_id in zip(
                 texts, embeddings.embed(texts), ("BROOKLYN", "MANHATTAN"), strict=True
             )
         ]
     )
+    recipe_text = "Recipe: make overnight oats with oat milk"
+    store.upsert(
+        [
+            VectorRecord(
+                document_id="recipe-brooklyn",
+                text=recipe_text,
+                embedding=embeddings.embed([recipe_text])[0],
+                metadata={"store_id": "BROOKLYN", "sku": "OAT001", "source_type": "recipe"},
+            )
+        ]
+    )
     retrieval = AuthenticatedRetrievalService(
         MockAuthProvider({"token": UserContext("manager-1", "brooklyn")}),
         RetrievalService(embeddings, store, LocalLexicalReranker()),
+        source_router=infer_source_type,
     )
     logs = JSONLRequestLogRepository(tmp_path / "requests.jsonl")
     ticks = iter((10.0, 10.125))
@@ -95,6 +110,15 @@ def test_ask_logs_safe_no_result_answer(tmp_path: Path) -> None:
     [record] = logs.read_all()
     assert record.retrieved_documents == ()
     assert record.estimated_cost_usd == 0
+
+
+def test_ask_routes_inventory_away_from_recipe_content(tmp_path: Path) -> None:
+    service, _ = _service(tmp_path)
+
+    response = service.ask("token", "Do we have oat milk?", filters={"sku": "OAT001"})
+
+    assert response.answer.citations == ("delivery-brooklyn",)
+    assert "12 cartons" in response.answer.text
 
 
 def test_service_rejects_negative_token_prices(tmp_path: Path) -> None:

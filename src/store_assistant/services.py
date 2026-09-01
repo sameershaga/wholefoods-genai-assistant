@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Callable, Mapping
 from uuid import uuid4
 
 from store_assistant.answering import Answer, AnswerService
@@ -23,9 +23,16 @@ from store_assistant.retrieval import RetrievalError, RetrievalService
 class AuthenticatedRetrievalService:
     """Authenticate requests and enforce identity-derived store isolation."""
 
-    def __init__(self, auth_provider: AuthProvider, retrieval_service: RetrievalService) -> None:
+    def __init__(
+        self,
+        auth_provider: AuthProvider,
+        retrieval_service: RetrievalService,
+        *,
+        source_router: Callable[[str], str | None] | None = None,
+    ) -> None:
         self._auth_provider = auth_provider
         self._retrieval_service = retrieval_service
+        self._source_router = source_router
 
     def retrieve(
         self,
@@ -36,6 +43,10 @@ class AuthenticatedRetrievalService:
     ) -> tuple[UserContext, list[RerankResult]]:
         context = self._auth_provider.authenticate(access_token)
         scoped_filters = dict(filters or {})
+        if "source_type" not in scoped_filters and self._source_router is not None:
+            inferred_source = self._source_router(query)
+            if inferred_source is not None:
+                scoped_filters["source_type"] = inferred_source
         requested_store = scoped_filters.get("store_id")
         if requested_store is not None:
             if not isinstance(requested_store, (str, int)):
@@ -87,17 +98,14 @@ class AssistantService:
         filters: Mapping[str, MetadataValue] | None = None,
     ) -> AssistantResponse:
         started_at = self._clock()
-        user, context = self._retrieval_service.retrieve(
-            access_token, query, filters=filters
-        )
+        user, context = self._retrieval_service.retrieve(access_token, query, filters=filters)
         answer = self._answer_service.answer(query, context)
         request_id = self._request_id_factory().strip()
         if not request_id:
             raise ValueError("request ID factory returned an empty value")
         elapsed_ms = max(0.0, (self._clock() - started_at) * 1000)
         cost = (
-            answer.prompt_tokens * self._input_cost
-            + answer.completion_tokens * self._output_cost
+            answer.prompt_tokens * self._input_cost + answer.completion_tokens * self._output_cost
         ) / 1_000_000
         self._log_repository.append(
             RequestLog.create(
