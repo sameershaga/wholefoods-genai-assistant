@@ -21,6 +21,7 @@ from store_assistant.providers.reranking import (
 )
 from store_assistant.providers.vector_store import (
     InMemoryVectorStore,
+    PineconeVectorStore,
     VectorRecord,
     VectorSearchResult,
     VectorStore,
@@ -33,6 +34,7 @@ __all__ = [
     "EmbeddingProvider",
     "GeneratedAnswer",
     "InMemoryVectorStore",
+    "PineconeVectorStore",
     "LocalHashEmbeddingProvider",
     "LLMError",
     "LLMProvider",
