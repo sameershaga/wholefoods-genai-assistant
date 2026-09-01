@@ -95,6 +95,7 @@ class SlackCommandHandler:
     """Translate trusted slash commands into assistant requests."""
 
     MAX_QUERY_LENGTH = 2_000
+    MAX_BODY_BYTES = 16_384
 
     def __init__(
         self,
@@ -122,6 +123,7 @@ class SlackCommandHandler:
         timestamp: str | None,
         signature: str | None,
     ) -> SlackCommandResponse:
+        self._validate_body_size(body)
         self._verifier.verify(body, timestamp, signature)
         try:
             fields = parse_qs(body.decode("utf-8"), strict_parsing=True)
@@ -153,6 +155,7 @@ class SlackCommandHandler:
         self, body: bytes, *, timestamp: str | None, signature: str | None
     ) -> SlackCommandResponse:
         """Verify and persist a Slack Block Kit thumbs interaction."""
+        self._validate_body_size(body)
         self._verifier.verify(body, timestamp, signature)
         if self._feedback is None:
             raise SlackRequestError("Slack feedback is not configured")
@@ -179,6 +182,12 @@ class SlackCommandHandler:
         except FeedbackError as exc:
             raise SlackRequestError(str(exc)) from exc
         return SlackCommandResponse(text="Thanks for your feedback.")
+
+    def _validate_body_size(self, body: bytes) -> None:
+        if len(body) > self.MAX_BODY_BYTES:
+            raise SlackRequestError(
+                f"Slack request body must not exceed {self.MAX_BODY_BYTES} bytes"
+            )
 
 
 def create_slack_router(handler: SlackCommandHandler) -> APIRouter:

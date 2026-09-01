@@ -116,6 +116,19 @@ def test_slack_command_rejects_oversized_query(tmp_path: Path) -> None:
         _handler(tmp_path).handle(body, timestamp=timestamp, signature=signature)
 
 
+@pytest.mark.parametrize("interaction", [False, True])
+def test_slack_handler_rejects_oversized_request_body(tmp_path: Path, interaction: bool) -> None:
+    handler = _handler(tmp_path)
+    body = b"x" * (handler.MAX_BODY_BYTES + 1)
+    timestamp, signature = _signed(body)
+
+    with pytest.raises(SlackRequestError, match="must not exceed 16384 bytes"):
+        if interaction:
+            handler.handle_interaction(body, timestamp=timestamp, signature=signature)
+        else:
+            handler.handle(body, timestamp=timestamp, signature=signature)
+
+
 def test_slack_router_exposes_signed_command_endpoint(tmp_path: Path) -> None:
     app = FastAPI()
     app.include_router(create_slack_router(_handler(tmp_path)))
