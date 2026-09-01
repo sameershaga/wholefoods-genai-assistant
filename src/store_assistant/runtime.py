@@ -14,7 +14,7 @@ from store_assistant.answering import AnswerService
 from store_assistant.api import create_app
 from store_assistant.auth import MockAuthProvider, UserContext
 from store_assistant.feedback import SQLiteFeedbackRepository
-from store_assistant.ingestion.contracts import ingest_supplier_contract
+from store_assistant.ingestion.contracts import ingest_supplier_contracts
 from store_assistant.ingestion.delivery_logs import ingest_delivery_logs
 from store_assistant.ingestion.recipes import ingest_recipe_html
 from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
@@ -88,7 +88,7 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
         *ingest_recipe_html(config.recipe_path),
     ]
     if config.supplier_contract_path is not None:
-        chunks.extend(ingest_supplier_contract(config.supplier_contract_path))
+        chunks.extend(ingest_supplier_contracts(config.supplier_contract_path))
     embeddings = LocalHashEmbeddingProvider(config.embedding_dimensions)
     vector_store = InMemoryVectorStore(embeddings.dimension)
     vectors = embeddings.embed([chunk.text for chunk in chunks])

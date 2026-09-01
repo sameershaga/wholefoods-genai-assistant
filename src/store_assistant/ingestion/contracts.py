@@ -78,6 +78,32 @@ def ingest_supplier_contract(path: str | Path) -> list[DocumentChunk]:
     ]
 
 
+def ingest_supplier_contracts(path: str | Path) -> list[DocumentChunk]:
+    """Ingest one PDF or every PDF in a directory in deterministic name order."""
+    source_path = Path(path)
+    if not source_path.is_dir():
+        return ingest_supplier_contract(source_path)
+
+    pdf_paths = sorted(
+        (candidate for candidate in source_path.iterdir() if candidate.suffix.casefold() == ".pdf"),
+        key=lambda candidate: candidate.name.casefold(),
+    )
+    if not pdf_paths:
+        raise ContractIngestionError(f"contract directory contains no PDF files: {source_path}")
+
+    chunks: list[DocumentChunk] = []
+    document_ids: set[str] = set()
+    for pdf_path in pdf_paths:
+        contract_chunks = ingest_supplier_contract(pdf_path)
+        duplicate_ids = document_ids.intersection(chunk.document_id for chunk in contract_chunks)
+        if duplicate_ids:
+            duplicate = min(duplicate_ids)
+            raise ContractIngestionError(f"duplicate contract document ID: {duplicate}")
+        chunks.extend(contract_chunks)
+        document_ids.update(chunk.document_id for chunk in contract_chunks)
+    return chunks
+
+
 def _extract_fields(text: str) -> tuple[dict[str, str], list[str]]:
     fields: dict[str, str] = {}
     body: list[str] = []

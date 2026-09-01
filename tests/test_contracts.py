@@ -6,7 +6,9 @@ import pytest
 from store_assistant.ingestion.contracts import (
     ContractIngestionError,
     ingest_supplier_contract,
+    ingest_supplier_contracts,
 )
+from store_assistant.ingestion.models import DocumentChunk
 
 
 def _reader_with_text(text: str) -> MagicMock:
@@ -76,3 +78,42 @@ def test_rejects_unusable_contracts(reader: MagicMock, text: str, error: str) ->
 
     with pytest.raises(ContractIngestionError, match=error):
         ingest_supplier_contract("contract.pdf")
+
+
+@patch("store_assistant.ingestion.contracts.ingest_supplier_contract")
+def test_ingests_contract_directory_in_deterministic_order(
+    ingest_one: MagicMock, tmp_path: Path
+) -> None:
+    (tmp_path / "zebra.PDF").touch()
+    (tmp_path / "Alpha.pdf").touch()
+    (tmp_path / "notes.txt").touch()
+    ingest_one.side_effect = lambda path: [
+        DocumentChunk(f"contract:{path.stem}:0", f"Terms for {path.stem}", {})
+    ]
+
+    chunks = ingest_supplier_contracts(tmp_path)
+
+    assert [chunk.document_id for chunk in chunks] == [
+        "contract:Alpha:0",
+        "contract:zebra:0",
+    ]
+    assert [call.args[0].name for call in ingest_one.call_args_list] == ["Alpha.pdf", "zebra.PDF"]
+
+
+def test_rejects_contract_directory_without_pdfs(tmp_path: Path) -> None:
+    (tmp_path / "readme.txt").touch()
+
+    with pytest.raises(ContractIngestionError, match="contains no PDF files"):
+        ingest_supplier_contracts(tmp_path)
+
+
+@patch("store_assistant.ingestion.contracts.ingest_supplier_contract")
+def test_rejects_duplicate_document_ids_across_contracts(
+    ingest_one: MagicMock, tmp_path: Path
+) -> None:
+    (tmp_path / "one.pdf").touch()
+    (tmp_path / "two.pdf").touch()
+    ingest_one.return_value = [DocumentChunk("contract:duplicate:0", "Terms", {})]
+
+    with pytest.raises(ContractIngestionError, match="duplicate contract document ID"):
+        ingest_supplier_contracts(tmp_path)

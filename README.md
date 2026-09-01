@@ -79,7 +79,7 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | --- | --- | --- |
 | `STORE_ASSISTANT_DELIVERY_LOGS_PATH` | Delivery JSON | `data/delivery_logs.json` |
 | `STORE_ASSISTANT_RECIPE_PATH` | Recipe HTML | bundled oat-milk recipe |
-| `STORE_ASSISTANT_SUPPLIER_CONTRACT_PATH` | Supplier contract PDF | unset/disabled |
+| `STORE_ASSISTANT_SUPPLIER_CONTRACT_PATH` | Supplier contract PDF or PDF directory | unset/disabled |
 | `STORE_ASSISTANT_STATE_DIRECTORY` | Logs and feedback | `.local` |
 | `STORE_ASSISTANT_EMBEDDING_DIMENSIONS` | Local vector size | `384` |
 | `AWS_REGION`, `BEDROCK_EMBEDDING_MODEL_ID` | Titan/Bedrock | reserved |
@@ -121,8 +121,10 @@ suppliers, and product categories become consistent filter metadata.
 Deterministic IDs support citations, and malformed inputs fail explicitly.
 
 The bundled runtime indexes delivery logs and the synthetic oat-milk recipe.
-Set `STORE_ASSISTANT_SUPPLIER_CONTRACT_PATH` to index a synthetic supplier PDF
-at startup; leaving it unset keeps contract indexing disabled.
+Set `STORE_ASSISTANT_SUPPLIER_CONTRACT_PATH` to a synthetic supplier PDF or a
+directory of PDFs to index them at startup; leaving it unset keeps contract
+indexing disabled. Directory files are processed deterministically by name,
+and duplicate contract document IDs are rejected rather than overwritten.
 
 ## Retrieval, answers, and observability
 
@@ -188,8 +190,6 @@ circuit breakers, readiness checks, autoscaling, and cost monitoring.
 - Hosted provider and deployed Slack composition remain extension points; Titan,
   Pinecone, and Okta-compatible OIDC adapters are implemented but are not selected
   by the offline composition root.
-- Runtime startup accepts one supplier contract PDF; batch/directory ingestion
-  is not yet implemented.
 - The vector index is in-memory and rebuilt at startup.
 - Local model substitutes have limited semantic/conversational quality.
 - Slack handling is synchronous; production should acknowledge quickly.

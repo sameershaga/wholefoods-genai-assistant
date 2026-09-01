@@ -93,7 +93,7 @@ def test_local_runtime_indexes_recipe_sections(tmp_path: Path) -> None:
     assert any(citation.startswith("recipe:") for citation in payload["citations"])
 
 
-@patch("store_assistant.runtime.ingest_supplier_contract")
+@patch("store_assistant.runtime.ingest_supplier_contracts")
 def test_local_runtime_indexes_configured_supplier_contract(
     ingest_contract: MagicMock, tmp_path: Path
 ) -> None:
