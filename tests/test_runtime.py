@@ -11,7 +11,13 @@ from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
 from store_assistant.providers.embeddings import AmazonTitanEmbeddingProvider
-from store_assistant.runtime import LocalSettings, _create_embedding_provider, create_local_app
+from store_assistant.providers.vector_store import PineconeVectorStore
+from store_assistant.runtime import (
+    LocalSettings,
+    _create_embedding_provider,
+    _create_vector_store,
+    create_local_app,
+)
 
 
 def test_local_settings_load_from_environment(tmp_path: Path) -> None:
@@ -31,6 +37,7 @@ def test_local_settings_load_from_environment(tmp_path: Path) -> None:
     assert settings.state_directory == tmp_path
     assert settings.embedding_dimensions == 128
     assert settings.embedding_provider == "local"
+    assert settings.vector_store_provider == "local"
     assert settings.slack_signing_secret is None
     assert settings.slack_user_tokens is None
 
@@ -81,6 +88,47 @@ def test_settings_reject_invalid_embedding_provider_configuration() -> None:
             assert "EMBEDDING" in str(exc)
         else:
             raise AssertionError("expected invalid embedding provider configuration to fail")
+
+
+def test_settings_and_factory_select_pinecone_from_environment(monkeypatch: MonkeyPatch) -> None:
+    index = object()
+    client = MagicMock()
+    client.Index.return_value = index
+    pinecone_constructor = MagicMock(return_value=client)
+    monkeypatch.setitem(sys.modules, "pinecone", SimpleNamespace(Pinecone=pinecone_constructor))
+    settings = LocalSettings.from_environment(
+        {
+            "STORE_ASSISTANT_VECTOR_STORE_PROVIDER": "pinecone",
+            "PINECONE_API_KEY": "test-key",
+            "PINECONE_INDEX_HOST": "test-index.example.pinecone.io",
+            "PINECONE_NAMESPACE": "store-assistant",
+        }
+    )
+
+    store = _create_vector_store(settings, 384)
+
+    assert isinstance(store, PineconeVectorStore)
+    assert store.dimension == 384
+    pinecone_constructor.assert_called_once_with(api_key="test-key")
+    client.Index.assert_called_once_with(host="test-index.example.pinecone.io")
+
+
+def test_settings_reject_invalid_pinecone_configuration() -> None:
+    invalid_environments = (
+        {"STORE_ASSISTANT_VECTOR_STORE_PROVIDER": "unknown"},
+        {"STORE_ASSISTANT_VECTOR_STORE_PROVIDER": "pinecone"},
+        {
+            "STORE_ASSISTANT_VECTOR_STORE_PROVIDER": "pinecone",
+            "PINECONE_API_KEY": "key",
+        },
+    )
+    for environment in invalid_environments:
+        try:
+            LocalSettings.from_environment(environment)
+        except ValueError as exc:
+            assert "PINECONE" in str(exc) or "VECTOR_STORE_PROVIDER" in str(exc)
+        else:
+            raise AssertionError("expected invalid Pinecone configuration to fail")
 
 
 def test_local_runtime_loads_synthetic_data_and_enforces_store_isolation(

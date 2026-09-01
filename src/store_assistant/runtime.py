@@ -25,7 +25,12 @@ from store_assistant.providers.embeddings import (
 )
 from store_assistant.providers.llm import LocalExtractiveLLM
 from store_assistant.providers.reranking import LocalLexicalReranker
-from store_assistant.providers.vector_store import InMemoryVectorStore, VectorRecord
+from store_assistant.providers.vector_store import (
+    InMemoryVectorStore,
+    PineconeVectorStore,
+    VectorRecord,
+    VectorStore,
+)
 from store_assistant.query_routing import infer_source_type
 from store_assistant.request_logging import JSONLRequestLogRepository
 from store_assistant.retrieval import RetrievalService
@@ -45,6 +50,10 @@ class LocalSettings:
     embedding_provider: str = "local"
     aws_region: str = "us-east-1"
     bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"
+    vector_store_provider: str = "local"
+    pinecone_api_key: str | None = None
+    pinecone_index_host: str | None = None
+    pinecone_namespace: str | None = None
     slack_signing_secret: str | None = None
     slack_user_tokens: Mapping[str, str] | None = None
 
@@ -70,6 +79,16 @@ class LocalSettings:
         model_id = values.get("BEDROCK_EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0").strip()
         if not aws_region or not model_id:
             raise ValueError("AWS_REGION and BEDROCK_EMBEDDING_MODEL_ID must be non-empty")
+        vector_store_provider = values.get("STORE_ASSISTANT_VECTOR_STORE_PROVIDER", "local").strip()
+        if vector_store_provider not in {"local", "pinecone"}:
+            raise ValueError("STORE_ASSISTANT_VECTOR_STORE_PROVIDER must be local or pinecone")
+        pinecone_api_key = values.get("PINECONE_API_KEY", "").strip() or None
+        pinecone_index_host = values.get("PINECONE_INDEX_HOST", "").strip() or None
+        pinecone_namespace = values.get("PINECONE_NAMESPACE", "").strip() or None
+        if vector_store_provider == "pinecone" and (
+            pinecone_api_key is None or pinecone_index_host is None
+        ):
+            raise ValueError("PINECONE_API_KEY and PINECONE_INDEX_HOST are required for pinecone")
         signing_secret = values.get("SLACK_SIGNING_SECRET", "").strip() or None
         slack_user_tokens = _load_slack_user_tokens(
             values.get("STORE_ASSISTANT_SLACK_USER_TOKENS", "")
@@ -97,6 +116,10 @@ class LocalSettings:
             embedding_provider=embedding_provider,
             aws_region=aws_region,
             bedrock_embedding_model_id=model_id,
+            vector_store_provider=vector_store_provider,
+            pinecone_api_key=pinecone_api_key,
+            pinecone_index_host=pinecone_index_host,
+            pinecone_namespace=pinecone_namespace,
             slack_signing_secret=signing_secret,
             slack_user_tokens=slack_user_tokens,
         )
@@ -112,7 +135,7 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
     if config.supplier_contract_path is not None:
         chunks.extend(ingest_supplier_contracts(config.supplier_contract_path))
     embeddings = _create_embedding_provider(config)
-    vector_store = InMemoryVectorStore(embeddings.dimension)
+    vector_store = _create_vector_store(config, embeddings.dimension)
     vectors = embeddings.embed([chunk.text for chunk in chunks])
     vector_store.upsert(
         [
@@ -188,6 +211,23 @@ def _create_embedding_provider(config: LocalSettings) -> EmbeddingProvider:
         model_id=config.bedrock_embedding_model_id,
         dimensions=config.embedding_dimensions,
     )
+
+
+def _create_vector_store(config: LocalSettings, dimension: int) -> VectorStore:
+    if config.vector_store_provider == "local":
+        return InMemoryVectorStore(dimension)
+    try:
+        from pinecone import Pinecone  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise RuntimeError(
+            "Pinecone vector storage requires the optional Pinecone dependencies; "
+            "install the project with [pinecone]"
+        ) from exc
+    if config.pinecone_api_key is None or config.pinecone_index_host is None:
+        raise ValueError("Pinecone API key and index host must be configured")
+    client = Pinecone(api_key=config.pinecone_api_key)
+    index: Any = client.Index(host=config.pinecone_index_host)
+    return PineconeVectorStore(index, dimension, namespace=config.pinecone_namespace)
 
 
 app = create_local_app()

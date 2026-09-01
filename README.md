@@ -83,8 +83,9 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | `STORE_ASSISTANT_STATE_DIRECTORY` | Logs and feedback | `.local` |
 | `STORE_ASSISTANT_EMBEDDING_DIMENSIONS` | Local vector size | `384` |
 | `STORE_ASSISTANT_EMBEDDING_PROVIDER` | `local` or Amazon `bedrock` | `local` |
+| `STORE_ASSISTANT_VECTOR_STORE_PROVIDER` | `local` or `pinecone` | `local` |
 | `AWS_REGION`, `BEDROCK_EMBEDDING_MODEL_ID` | Titan/Bedrock | reserved |
-| `PINECONE_API_KEY`, `PINECONE_INDEX_HOST` | Pinecone | reserved |
+| `PINECONE_API_KEY`, `PINECONE_INDEX_HOST`, `PINECONE_NAMESPACE` | Pinecone | unset |
 | `OKTA_ISSUER`, `OKTA_AUDIENCE` | Okta token verification | hosted adapter |
 | `OKTA_STORE_ID_CLAIM` | Trusted store-scope claim | `store_id` |
 | `SLACK_SIGNING_SECRET` | Slack request verification | unset |
@@ -94,7 +95,9 @@ Set the embedding provider to `bedrock`, choose a Titan V2 dimension of 256,
 512, or 1024, and install `.[aws]` to let the runtime create its Bedrock client
 from the standard AWS credential chain. `AmazonTitanEmbeddingProvider`, `PineconeVectorStore`, and
 `OktaOIDCAuthProvider` implement hosted provider boundaries using injected SDK
-clients. The OIDC verifier must validate the JWT signature, issuer, audience,
+clients. Set the vector-store provider to `pinecone`, provide its API key and
+index host, and install `.[pinecone]` to use an existing Pinecone index whose
+dimension matches the embedding provider. The OIDC verifier must validate the JWT signature, issuer, audience,
 expiry, and other standard claims before returning identity claims. Credentials,
 key caching, retries, and timeouts remain deployment configuration.
 Never commit real secrets.
@@ -190,9 +193,10 @@ circuit breakers, readiness checks, autoscaling, and cost monitoring.
 
 ## Limitations
 
-- Pinecone and Okta-compatible OIDC adapters are implemented but are not yet
-  selected by the runtime composition root.
-- The vector index is in-memory and rebuilt at startup.
+- Okta-compatible OIDC is implemented but is not yet selected by the runtime
+  composition root.
+- The local vector index is in-memory and rebuilt at startup; configured Pinecone
+  records are upserted again during each startup.
 - Local model substitutes have limited semantic/conversational quality.
 - Slack handling is synchronous; production should acknowledge quickly.
 - The small synthetic golden set is a regression signal, not real-world proof.
