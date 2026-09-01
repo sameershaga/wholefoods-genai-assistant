@@ -177,6 +177,9 @@ mypy
 python -m store_assistant.evaluation
 ```
 
+The GitHub Actions CI workflow runs these quality gates and the golden evaluation
+on every push and pull request using Python 3.12.
+
 Tests cover ingestion, normalization, chunking, store/SKU filtering, retrieval,
 reranking, citations, auth propagation, cross-store isolation, feedback, API
 errors, Slack signatures, and evaluation. The golden dataset overlaps oat milk
