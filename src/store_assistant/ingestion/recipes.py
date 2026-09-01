@@ -44,8 +44,9 @@ class _RecipeParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
-        if tag == "meta" and attributes.get("name", "").startswith("recipe:"):
-            name = attributes["name"].removeprefix("recipe:")
+        raw_name = attributes.get("name")
+        if tag == "meta" and raw_name is not None and raw_name.startswith("recipe:"):
+            name = raw_name.removeprefix("recipe:")
             self.metadata[name] = attributes.get("content") or ""
         if tag == "h1":
             self._in_title = True
