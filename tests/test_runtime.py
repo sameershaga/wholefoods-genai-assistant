@@ -12,11 +12,13 @@ from pytest import MonkeyPatch
 
 from store_assistant.auth import OktaOIDCAuthProvider
 from store_assistant.providers.embeddings import AmazonTitanEmbeddingProvider
+from store_assistant.providers.llm import AmazonBedrockLLM
 from store_assistant.providers.vector_store import PineconeVectorStore
 from store_assistant.runtime import (
     LocalSettings,
     _create_auth_provider,
     _create_embedding_provider,
+    _create_llm_provider,
     _create_vector_store,
     create_local_app,
 )
@@ -91,6 +93,49 @@ def test_settings_reject_invalid_embedding_provider_configuration() -> None:
             assert "EMBEDDING" in str(exc)
         else:
             raise AssertionError("expected invalid embedding provider configuration to fail")
+
+
+def test_settings_and_factory_select_bedrock_llm_from_environment(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    client = object()
+    boto3_client = MagicMock(return_value=client)
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=boto3_client))
+    settings = LocalSettings.from_environment(
+        {
+            "STORE_ASSISTANT_LLM_PROVIDER": "bedrock",
+            "AWS_REGION": "us-west-2",
+            "BEDROCK_LLM_MODEL_ID": "test-answer-model",
+            "BEDROCK_LLM_MAX_TOKENS": "180",
+            "BEDROCK_LLM_TEMPERATURE": "0.25",
+        }
+    )
+
+    provider = _create_llm_provider(settings)
+
+    assert isinstance(provider, AmazonBedrockLLM)
+    assert provider.client is client
+    assert provider.model == "test-answer-model"
+    assert provider.max_tokens == 180
+    assert provider.temperature == 0.25
+    boto3_client.assert_called_once_with("bedrock-runtime", region_name="us-west-2")
+
+
+def test_settings_reject_invalid_llm_configuration() -> None:
+    invalid_environments = (
+        {"STORE_ASSISTANT_LLM_PROVIDER": "unknown"},
+        {"BEDROCK_LLM_MODEL_ID": ""},
+        {"BEDROCK_LLM_MAX_TOKENS": "0"},
+        {"BEDROCK_LLM_MAX_TOKENS": "many"},
+        {"BEDROCK_LLM_TEMPERATURE": "1.1"},
+    )
+    for environment in invalid_environments:
+        try:
+            LocalSettings.from_environment(environment)
+        except ValueError as exc:
+            assert "LLM" in str(exc) or "token" in str(exc)
+        else:
+            raise AssertionError("expected invalid LLM configuration to fail")
 
 
 def test_settings_and_factory_select_pinecone_from_environment(monkeypatch: MonkeyPatch) -> None:

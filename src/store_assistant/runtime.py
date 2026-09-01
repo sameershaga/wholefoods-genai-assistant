@@ -29,7 +29,7 @@ from store_assistant.providers.embeddings import (
     EmbeddingProvider,
     LocalHashEmbeddingProvider,
 )
-from store_assistant.providers.llm import LocalExtractiveLLM
+from store_assistant.providers.llm import AmazonBedrockLLM, LLMProvider, LocalExtractiveLLM
 from store_assistant.providers.reranking import LocalLexicalReranker
 from store_assistant.providers.vector_store import (
     InMemoryVectorStore,
@@ -56,6 +56,10 @@ class LocalSettings:
     embedding_provider: str = "local"
     aws_region: str = "us-east-1"
     bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"
+    llm_provider: str = "local"
+    bedrock_llm_model_id: str = "amazon.nova-lite-v1:0"
+    bedrock_llm_max_tokens: int = 300
+    bedrock_llm_temperature: float = 0.0
     vector_store_provider: str = "local"
     pinecone_api_key: str | None = None
     pinecone_index_host: str | None = None
@@ -89,6 +93,17 @@ class LocalSettings:
         model_id = values.get("BEDROCK_EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0").strip()
         if not aws_region or not model_id:
             raise ValueError("AWS_REGION and BEDROCK_EMBEDDING_MODEL_ID must be non-empty")
+        llm_provider = values.get("STORE_ASSISTANT_LLM_PROVIDER", "local").strip()
+        if llm_provider not in {"local", "bedrock"}:
+            raise ValueError("STORE_ASSISTANT_LLM_PROVIDER must be local or bedrock")
+        llm_model_id = values.get("BEDROCK_LLM_MODEL_ID", "amazon.nova-lite-v1:0").strip()
+        try:
+            llm_max_tokens = int(values.get("BEDROCK_LLM_MAX_TOKENS", "300"))
+            llm_temperature = float(values.get("BEDROCK_LLM_TEMPERATURE", "0"))
+        except ValueError as exc:
+            raise ValueError("Bedrock LLM token and temperature settings must be numeric") from exc
+        if not llm_model_id or llm_max_tokens < 1 or not 0 <= llm_temperature <= 1:
+            raise ValueError("Bedrock LLM settings are invalid")
         vector_store_provider = values.get("STORE_ASSISTANT_VECTOR_STORE_PROVIDER", "local").strip()
         if vector_store_provider not in {"local", "pinecone"}:
             raise ValueError("STORE_ASSISTANT_VECTOR_STORE_PROVIDER must be local or pinecone")
@@ -136,6 +151,10 @@ class LocalSettings:
             embedding_provider=embedding_provider,
             aws_region=aws_region,
             bedrock_embedding_model_id=model_id,
+            llm_provider=llm_provider,
+            bedrock_llm_model_id=llm_model_id,
+            bedrock_llm_max_tokens=llm_max_tokens,
+            bedrock_llm_temperature=llm_temperature,
             vector_store_provider=vector_store_provider,
             pinecone_api_key=pinecone_api_key,
             pinecone_index_host=pinecone_index_host,
@@ -172,7 +191,7 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
     retrieval = RetrievalService(embeddings, vector_store, LocalLexicalReranker())
     assistant = AssistantService(
         AuthenticatedRetrievalService(auth, retrieval, source_router=infer_source_type),
-        AnswerService(LocalExtractiveLLM()),
+        AnswerService(_create_llm_provider(config)),
         JSONLRequestLogRepository(config.state_directory / "requests.jsonl"),
     )
     feedback = SQLiteFeedbackRepository(config.state_directory / "feedback.sqlite3")
@@ -228,6 +247,25 @@ def _create_embedding_provider(config: LocalSettings) -> EmbeddingProvider:
         client=client,
         model_id=config.bedrock_embedding_model_id,
         dimensions=config.embedding_dimensions,
+    )
+
+
+def _create_llm_provider(config: LocalSettings) -> LLMProvider:
+    if config.llm_provider == "local":
+        return LocalExtractiveLLM()
+    try:
+        import boto3
+    except ImportError as exc:
+        raise RuntimeError(
+            "Bedrock answer generation requires the optional AWS dependencies; "
+            "install the project with [aws]"
+        ) from exc
+    client: Any = boto3.client("bedrock-runtime", region_name=config.aws_region)
+    return AmazonBedrockLLM(
+        client=client,
+        model=config.bedrock_llm_model_id,
+        max_tokens=config.bedrock_llm_max_tokens,
+        temperature=config.bedrock_llm_temperature,
     )
 
 

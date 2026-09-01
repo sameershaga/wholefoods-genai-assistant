@@ -85,7 +85,9 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | `STORE_ASSISTANT_EMBEDDING_PROVIDER` | `local` or Amazon `bedrock` | `local` |
 | `STORE_ASSISTANT_VECTOR_STORE_PROVIDER` | `local` or `pinecone` | `local` |
 | `STORE_ASSISTANT_AUTH_PROVIDER` | `mock` or `okta` | `mock` |
+| `STORE_ASSISTANT_LLM_PROVIDER` | `local` or Amazon `bedrock` | `local` |
 | `AWS_REGION`, `BEDROCK_EMBEDDING_MODEL_ID` | Titan/Bedrock | reserved |
+| `BEDROCK_LLM_MODEL_ID`, `BEDROCK_LLM_MAX_TOKENS`, `BEDROCK_LLM_TEMPERATURE` | Bedrock Converse generation | Nova Lite, `300`, `0` |
 | `PINECONE_API_KEY`, `PINECONE_INDEX_HOST`, `PINECONE_NAMESPACE` | Pinecone | unset |
 | `OKTA_ISSUER`, `OKTA_AUDIENCE` | Okta token verification | hosted adapter |
 | `OKTA_STORE_ID_CLAIM` | Trusted store-scope claim | `store_id` |
@@ -104,6 +106,9 @@ key caching, retries, and timeouts remain deployment configuration.
 Set the auth provider to `okta`, configure issuer, audience, and the trusted
 store claim, and install `.[okta]`; the runtime verifies RS256 access tokens
 against the issuer's JWKS endpoint. Mock tokens remain the offline default.
+Set the LLM provider to `bedrock` and install `.[aws]` to generate grounded
+answers with Bedrock Converse. Model token usage flows into the existing request
+telemetry and cost calculation, while citations remain service-enforced.
 Never commit real secrets.
 
 ## Slack interface
@@ -189,8 +194,8 @@ The Python 3.12 image runs as non-root and health-checks `GET /health`.
 ## Production deployment approach
 
 Build and scan the container in CI and deploy stateless workers behind TLS.
-Implement the existing protocols with Okta OIDC, Amazon Titan/Bedrock,
-namespaced Pinecone, and approved hosted LLM/reranking providers selected via
+Deploy the environment-selectable Okta OIDC, Amazon Titan/Bedrock, and
+namespaced Pinecone adapters, plus an approved hosted reranking provider, via
 validated environment configuration. Run ingestion as an idempotent background
 job, use managed persistence and observability, and add timeouts, retries,
 circuit breakers, readiness checks, autoscaling, and cost monitoring.
