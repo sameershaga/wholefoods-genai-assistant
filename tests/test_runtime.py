@@ -13,12 +13,14 @@ def test_local_settings_load_from_environment(tmp_path: Path) -> None:
     settings = LocalSettings.from_environment(
         {
             "STORE_ASSISTANT_DELIVERY_LOGS_PATH": "fixtures/deliveries.json",
+            "STORE_ASSISTANT_RECIPE_PATH": "fixtures/recipe.html",
             "STORE_ASSISTANT_STATE_DIRECTORY": str(tmp_path),
             "STORE_ASSISTANT_EMBEDDING_DIMENSIONS": "128",
         }
     )
 
     assert settings.delivery_logs_path == Path("fixtures/deliveries.json")
+    assert settings.recipe_path == Path("fixtures/recipe.html")
     assert settings.state_directory == tmp_path
     assert settings.embedding_dimensions == 128
     assert settings.slack_signing_secret is None
@@ -71,6 +73,21 @@ def test_local_runtime_rejects_unknown_token(tmp_path: Path) -> None:
     )
 
     assert response.status_code == 401
+
+
+def test_local_runtime_indexes_recipe_sections(tmp_path: Path) -> None:
+    client = TestClient(create_local_app(LocalSettings(state_directory=tmp_path)))
+
+    response = client.post(
+        "/v1/query",
+        headers={"Authorization": "Bearer local-brooklyn-token"},
+        json={"query": "How do I prepare oat milk overnight oats?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "oat" in payload["answer"].lower()
+    assert any(citation.startswith("recipe:") for citation in payload["citations"])
 
 
 def test_local_runtime_enables_store_isolated_slack_from_environment(

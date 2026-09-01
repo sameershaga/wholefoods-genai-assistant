@@ -15,6 +15,7 @@ from store_assistant.api import create_app
 from store_assistant.auth import MockAuthProvider, UserContext
 from store_assistant.feedback import SQLiteFeedbackRepository
 from store_assistant.ingestion.delivery_logs import ingest_delivery_logs
+from store_assistant.ingestion.recipes import ingest_recipe_html
 from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
 from store_assistant.providers.llm import LocalExtractiveLLM
 from store_assistant.providers.reranking import LocalLexicalReranker
@@ -31,6 +32,7 @@ class LocalSettings:
     """Filesystem and identity settings used by the offline runtime."""
 
     delivery_logs_path: Path = Path("data/delivery_logs.json")
+    recipe_path: Path = Path("data/recipes/oat_milk_overnight_oats.html")
     state_directory: Path = Path(".local")
     embedding_dimensions: int = 384
     slack_signing_secret: str | None = None
@@ -60,6 +62,12 @@ class LocalSettings:
             delivery_logs_path=Path(
                 values.get("STORE_ASSISTANT_DELIVERY_LOGS_PATH", "data/delivery_logs.json")
             ),
+            recipe_path=Path(
+                values.get(
+                    "STORE_ASSISTANT_RECIPE_PATH",
+                    "data/recipes/oat_milk_overnight_oats.html",
+                )
+            ),
             state_directory=Path(values.get("STORE_ASSISTANT_STATE_DIRECTORY", ".local")),
             embedding_dimensions=dimensions,
             slack_signing_secret=signing_secret,
@@ -70,7 +78,10 @@ class LocalSettings:
 def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
     """Build an API using synthetic data and providers requiring no paid services."""
     config = settings or LocalSettings.from_environment()
-    chunks = ingest_delivery_logs(config.delivery_logs_path)
+    chunks = [
+        *ingest_delivery_logs(config.delivery_logs_path),
+        *ingest_recipe_html(config.recipe_path),
+    ]
     embeddings = LocalHashEmbeddingProvider(config.embedding_dimensions)
     vector_store = InMemoryVectorStore(embeddings.dimension)
     vectors = embeddings.embed([chunk.text for chunk in chunks])

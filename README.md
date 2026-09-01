@@ -78,6 +78,7 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | Variable | Purpose | Default/status |
 | --- | --- | --- |
 | `STORE_ASSISTANT_DELIVERY_LOGS_PATH` | Delivery JSON | `data/delivery_logs.json` |
+| `STORE_ASSISTANT_RECIPE_PATH` | Recipe HTML | bundled oat-milk recipe |
 | `STORE_ASSISTANT_STATE_DIRECTORY` | Logs and feedback | `.local` |
 | `STORE_ASSISTANT_EMBEDDING_DIMENSIONS` | Local vector size | `384` |
 | `AWS_REGION`, `BEDROCK_EMBEDDING_MODEL_ID` | Titan/Bedrock | reserved |
@@ -112,8 +113,8 @@ logical sections and steps. Dates become canonical UTC values; SKUs, store IDs,
 suppliers, and product categories become consistent filter metadata.
 Deterministic IDs support citations, and malformed inputs fail explicitly.
 
-The bundled runtime currently indexes delivery logs. Contract and recipe
-ingestors are independently tested but are not yet included at startup.
+The bundled runtime indexes delivery logs and the synthetic oat-milk recipe.
+Contract ingestion is independently tested but is not yet included at startup.
 
 ## Retrieval, answers, and observability
 
@@ -177,7 +178,7 @@ circuit breakers, readiness checks, autoscaling, and cost monitoring.
 ## Limitations
 
 - Bedrock, Pinecone, Okta, and deployed Slack wiring remain extension points.
-- Runtime startup indexes delivery data only.
+- Runtime startup does not yet index supplier contracts.
 - The vector index is in-memory and rebuilt at startup.
 - Local model substitutes have limited semantic/conversational quality.
 - Slack handling is synchronous; production should acknowledge quickly.
