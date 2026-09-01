@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
 
 from store_assistant.ingestion.models import MetadataValue
 from store_assistant.providers.embeddings import EmbeddingProvider

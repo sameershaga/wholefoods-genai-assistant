@@ -111,11 +111,7 @@ class SlackCommandHandler:
             raise SlackRequestError(str(exc)) from exc
         references = ", ".join(result.answer.citations) or "none"
         return SlackCommandResponse(
-            text=(
-                f"{result.answer.text}\n"
-                f"Sources: {references}\n"
-                f"Request ID: {result.request_id}"
-            )
+            text=(f"{result.answer.text}\nSources: {references}\nRequest ID: {result.request_id}")
         )
 
 

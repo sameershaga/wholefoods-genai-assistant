@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Mapping, Protocol, Sequence, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from store_assistant.ingestion.models import MetadataValue
 
@@ -68,7 +69,7 @@ class LocalLexicalReranker:
         if not query_tokens:
             raise RerankingError("query must contain at least one alphanumeric token")
         query_terms = set(query_tokens)
-        query_pairs = set(zip(query_tokens, query_tokens[1:]))
+        query_pairs = set(zip(query_tokens, query_tokens[1:], strict=False))
 
         results: list[RerankResult] = []
         seen_ids: set[str] = set()
@@ -78,7 +79,7 @@ class LocalLexicalReranker:
             document_terms = set(document_tokens)
             term_coverage = len(query_terms & document_terms) / len(query_terms)
             pair_coverage = (
-                len(query_pairs & set(zip(document_tokens, document_tokens[1:])))
+                len(query_pairs & set(zip(document_tokens, document_tokens[1:], strict=False)))
                 / len(query_pairs)
                 if query_pairs
                 else 0.0

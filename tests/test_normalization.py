@@ -49,9 +49,7 @@ def test_normalize_identifiers_and_filter_values() -> None:
         (normalize_product_category, "&"),
     ],
 )
-def test_invalid_values_raise_domain_error(
-    normalizer: Callable[[str], object], value: str
-) -> None:
+def test_invalid_values_raise_domain_error(normalizer: Callable[[str], object], value: str) -> None:
     with pytest.raises(NormalizationError):
         normalizer(value)
 

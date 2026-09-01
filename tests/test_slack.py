@@ -33,12 +33,14 @@ def _handler(tmp_path: Path) -> SlackCommandHandler:
     embeddings = LocalHashEmbeddingProvider(dimensions=32)
     store = InMemoryVectorStore(dimension=32)
     texts = ("Brooklyn has 12 cartons of oat milk", "Manhattan has 3 cartons of oat milk")
-    store.upsert([
-        VectorRecord(f"delivery-{store_id.lower()}", text, vector, {"store_id": store_id})
-        for store_id, text, vector in zip(
-            ("BROOKLYN", "MANHATTAN"), texts, embeddings.embed(texts), strict=True
-        )
-    ])
+    store.upsert(
+        [
+            VectorRecord(f"delivery-{store_id.lower()}", text, vector, {"store_id": store_id})
+            for store_id, text, vector in zip(
+                ("BROOKLYN", "MANHATTAN"), texts, embeddings.embed(texts), strict=True
+            )
+        ]
+    )
     auth = MockAuthProvider({"brooklyn-token": UserContext("manager-1", "BROOKLYN")})
     assistant = AssistantService(
         AuthenticatedRetrievalService(
@@ -90,8 +92,10 @@ def test_slack_command_rejects_untrusted_requests(
 
 
 def test_slack_command_rejects_unknown_user_and_empty_query(tmp_path: Path) -> None:
-    for fields, match in [({"user_id": "OTHER", "text": "oats"}, "not authorized"),
-                          ({"user_id": "U123", "text": " "}, "text")]:
+    for fields, match in [
+        ({"user_id": "OTHER", "text": "oats"}, "not authorized"),
+        ({"user_id": "U123", "text": " "}, "text"),
+    ]:
         body = urlencode(fields).encode()
         timestamp, signature = _signed(body)
         with pytest.raises(SlackRequestError, match=match):

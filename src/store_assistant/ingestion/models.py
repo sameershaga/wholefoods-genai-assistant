@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypeAlias
 
-MetadataValue: TypeAlias = str | int | float | bool
+type MetadataValue = str | int | float | bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,4 +14,3 @@ class DocumentChunk:
     document_id: str
     text: str
     metadata: dict[str, MetadataValue]
-

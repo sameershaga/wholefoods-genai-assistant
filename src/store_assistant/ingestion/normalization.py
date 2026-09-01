@@ -73,4 +73,3 @@ def normalize_product_category(value: str) -> str:
     if not normalized:
         raise NormalizationError("product category must contain letters or digits")
     return normalized
-

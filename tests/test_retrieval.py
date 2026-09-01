@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 import pytest
 
@@ -105,11 +105,7 @@ def test_retrieval_rejects_dimension_mismatch() -> None:
         )
 
 
-@pytest.mark.parametrize(
-    ("candidate_count", "context_count"), [(0, 1), (5, 0), (2, 3)]
-)
-def test_retrieval_rejects_invalid_configuration(
-    candidate_count: int, context_count: int
-) -> None:
+@pytest.mark.parametrize(("candidate_count", "context_count"), [(0, 1), (5, 0), (2, 3)])
+def test_retrieval_rejects_invalid_configuration(candidate_count: int, context_count: int) -> None:
     with pytest.raises(RetrievalError):
         RetrievalConfig(candidate_count=candidate_count, context_count=context_count)

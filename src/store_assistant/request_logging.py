@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 class RequestLogError(ValueError):
@@ -139,8 +140,7 @@ class JSONLRequestLogRepository:
                 for line in source:
                     payload = json.loads(line)
                     payload["retrieved_documents"] = tuple(
-                        RetrievedDocumentLog(**item)
-                        for item in payload["retrieved_documents"]
+                        RetrievedDocumentLog(**item) for item in payload["retrieved_documents"]
                     )
                     payload["timestamp"] = datetime.fromisoformat(payload["timestamp"])
                     records.append(RequestLog(**payload))

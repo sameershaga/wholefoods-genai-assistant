@@ -130,8 +130,7 @@ def evaluate(
         correct_answers += all(
             phrase.casefold() in normalized_answer for phrase in case.answer_must_contain
         ) and all(
-            phrase.casefold() not in normalized_answer
-            for phrase in case.answer_must_not_contain
+            phrase.casefold() not in normalized_answer for phrase in case.answer_must_not_contain
         )
         correct_citations += bool(set(answer.citations) & expected_ids) and store_is_correct
         total_cost += (
@@ -158,9 +157,7 @@ def _required_string(item: dict[str, Any], key: str) -> str:
     return value.strip()
 
 
-def _string_tuple(
-    item: dict[str, Any], key: str, *, required: bool = True
-) -> tuple[str, ...]:
+def _string_tuple(item: dict[str, Any], key: str, *, required: bool = True) -> tuple[str, ...]:
     value = item[key] if required else item.get(key, [])
     if not isinstance(value, list) or (required and not value):
         raise TypeError
@@ -171,8 +168,7 @@ def _string_tuple(
 
 def _string_mapping(value: Any) -> dict[str, str]:
     if not isinstance(value, dict) or any(
-        not isinstance(key, str) or not isinstance(item, str)
-        for key, item in value.items()
+        not isinstance(key, str) or not isinstance(item, str) for key, item in value.items()
     ):
         raise TypeError
     return dict(value)

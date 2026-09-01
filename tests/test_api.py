@@ -80,11 +80,14 @@ def test_query_reports_auth_validation_and_store_conflict_errors(tmp_path: Path)
     client, feedback = _client(tmp_path)
     try:
         assert client.post("/v1/query", json={"query": "oat milk"}).status_code == 401
-        assert client.post(
-            "/v1/query",
-            headers={"Authorization": "Bearer invalid"},
-            json={"query": "oat milk"},
-        ).status_code == 401
+        assert (
+            client.post(
+                "/v1/query",
+                headers={"Authorization": "Bearer invalid"},
+                json={"query": "oat milk"},
+            ).status_code
+            == 401
+        )
         conflict = client.post(
             "/v1/query",
             headers={"Authorization": "Bearer brooklyn-token"},

@@ -1,5 +1,5 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 import pytest
 
@@ -24,9 +24,7 @@ def test_local_answer_is_grounded_and_cited() -> None:
         [_result("delivery:BRK-001:0", "Oat milk has 12 cartons available.")],
     )
 
-    assert answer.text == (
-        "Oat milk has 12 cartons available. [source: delivery:BRK-001:0]"
-    )
+    assert answer.text == ("Oat milk has 12 cartons available. [source: delivery:BRK-001:0]")
     assert answer.citations == ("delivery:BRK-001:0",)
     assert answer.model == "local-extractive-v1"
     assert answer.prompt_tokens > 0
@@ -36,9 +34,7 @@ def test_local_answer_is_grounded_and_cited() -> None:
 def test_answer_service_enforces_all_context_citations() -> None:
     @dataclass
     class ProviderWithoutCitations:
-        def generate(
-            self, query: str, context: Sequence[RerankResult]
-        ) -> GeneratedAnswer:
+        def generate(self, query: str, context: Sequence[RerankResult]) -> GeneratedAnswer:
             return GeneratedAnswer("Use the first delivery.", "test-model", 10, 4)
 
     answer = AnswerService(ProviderWithoutCitations()).answer(
@@ -51,9 +47,7 @@ def test_answer_service_enforces_all_context_citations() -> None:
 def test_empty_context_returns_safe_answer_without_calling_provider() -> None:
     @dataclass
     class FailingProvider:
-        def generate(
-            self, query: str, context: Sequence[RerankResult]
-        ) -> GeneratedAnswer:
+        def generate(self, query: str, context: Sequence[RerankResult]) -> GeneratedAnswer:
             raise AssertionError("provider should not be called")
 
     answer = AnswerService(FailingProvider()).answer("unknown item", [])
@@ -88,9 +82,7 @@ def test_local_provider_rejects_empty_context() -> None:
 def test_answer_service_rejects_invalid_provider_response(response: GeneratedAnswer) -> None:
     @dataclass
     class InvalidProvider:
-        def generate(
-            self, query: str, context: Sequence[RerankResult]
-        ) -> GeneratedAnswer:
+        def generate(self, query: str, context: Sequence[RerankResult]) -> GeneratedAnswer:
             return response
 
     with pytest.raises(ValueError):

@@ -116,4 +116,3 @@ def _render_record(record: dict[str, Any], metadata: dict[str, MetadataValue]) -
 def _split_words(text: str, maximum: int) -> list[str]:
     words = text.split()
     return [" ".join(words[start : start + maximum]) for start in range(0, len(words), maximum)]
-

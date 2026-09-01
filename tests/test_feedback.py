@@ -30,9 +30,7 @@ def test_feedback_is_persisted_across_repository_instances(tmp_path: Path) -> No
 
 def test_new_rating_replaces_prior_user_rating_without_losing_creation_time() -> None:
     repository = SQLiteFeedbackRepository(":memory:")
-    original = repository.save(
-        request_id="request-123", user_id="U1", rating=FeedbackRating.UP
-    )
+    original = repository.save(request_id="request-123", user_id="U1", rating=FeedbackRating.UP)
     replacement = repository.save(
         request_id="request-123",
         user_id="U1",
