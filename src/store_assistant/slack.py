@@ -162,13 +162,20 @@ class SlackCommandHandler:
         try:
             fields = parse_qs(body.decode("utf-8"), strict_parsing=True)
             payload = json.loads(_single_field(fields, "payload"))
-            slack_user_id = payload["user"]["id"]
+            if not isinstance(payload, dict):
+                raise TypeError("interaction payload must be an object")
+            user = payload["user"]
+            if not isinstance(user, dict):
+                raise TypeError("interaction user must be an object")
+            slack_user_id = _nonempty_string(user["id"])
             actions = payload["actions"]
-            if len(actions) != 1:
+            if not isinstance(actions, list) or len(actions) != 1:
                 raise ValueError("interaction must contain one action")
             action = actions[0]
-            action_id = action["action_id"]
-            request_id = action["value"]
+            if not isinstance(action, dict):
+                raise TypeError("interaction action must be an object")
+            action_id = _nonempty_string(action["action_id"])
+            request_id = _nonempty_string(action["value"])
             rating = {
                 "feedback_up": FeedbackRating.UP,
                 "feedback_down": FeedbackRating.DOWN,
@@ -229,3 +236,9 @@ def _single_field(fields: Mapping[str, list[str]], name: str) -> str:
     if values is None or len(values) != 1 or not values[0].strip():
         raise SlackRequestError(f"Slack command requires one {name}")
     return values[0].strip()
+
+
+def _nonempty_string(value: object) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("interaction field must be a non-empty string")
+    return value.strip()

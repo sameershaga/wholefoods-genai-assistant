@@ -176,3 +176,25 @@ def test_slack_interaction_persists_signed_feedback(tmp_path: Path) -> None:
     saved = feedback.get(request_id="request-1", user_id="U123")
     assert saved is not None and saved.rating.value == "down"
     feedback.close()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        {"user": {"id": ["U123"]}, "actions": []},
+        {"user": {"id": "U123"}, "actions": {"action_id": "feedback_up"}},
+        {
+            "user": {"id": "U123"},
+            "actions": [{"action_id": "feedback_up", "value": 123}],
+        },
+    ],
+)
+def test_slack_interaction_rejects_malformed_field_types(tmp_path: Path, payload: object) -> None:
+    body = urlencode({"payload": json.dumps(payload)}).encode()
+    timestamp, signature = _signed(body)
+
+    with pytest.raises(SlackRequestError, match="invalid Slack interaction payload"):
+        _handler(
+            tmp_path, SQLiteFeedbackRepository(tmp_path / "feedback.sqlite3")
+        ).handle_interaction(body, timestamp=timestamp, signature=signature)
