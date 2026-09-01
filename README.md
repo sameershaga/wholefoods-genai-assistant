@@ -70,6 +70,19 @@ curl -s http://127.0.0.1:8000/v1/feedback \
   -d '{"request_id":"<request-id>","rating":"up","comment":"Useful"}'
 ```
 
+For a one-command container startup with request logs and feedback persisted in
+a named volume, run:
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+The API is available on port `8000` by default. Set `STORE_ASSISTANT_PORT` to
+publish a different host port, and use `docker compose down` to stop the service.
+The named volume is retained by default; remove it explicitly with
+`docker compose down --volumes` only when you intend to discard local state.
+
 ## Environment variables
 
 `.env.example` documents local settings and reserved production settings.

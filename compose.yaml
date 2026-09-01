@@ -1,0 +1,14 @@
+services:
+  assistant:
+    build:
+      context: .
+    ports:
+      - "${STORE_ASSISTANT_PORT:-8000}:8000"
+    environment:
+      STORE_ASSISTANT_STATE_DIRECTORY: /app/.local
+    volumes:
+      - assistant-state:/app/.local
+    restart: unless-stopped
+
+volumes:
+  assistant-state:
