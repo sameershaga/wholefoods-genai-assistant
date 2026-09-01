@@ -8,7 +8,9 @@ version = "0.1.0"
 description = "Synthetic, locally runnable store-operations GenAI assistant"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "pypdf>=5.0,<7",
+]
 
 [project.optional-dependencies]
 dev = [
