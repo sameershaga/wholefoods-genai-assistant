@@ -108,6 +108,14 @@ def test_slack_command_rejects_unknown_user_and_empty_query(tmp_path: Path) -> N
             _handler(tmp_path).handle(body, timestamp=timestamp, signature=signature)
 
 
+def test_slack_command_rejects_oversized_query(tmp_path: Path) -> None:
+    body = urlencode({"user_id": "U123", "text": "x" * 2_001}).encode()
+    timestamp, signature = _signed(body)
+
+    with pytest.raises(SlackRequestError, match="must not exceed 2000 characters"):
+        _handler(tmp_path).handle(body, timestamp=timestamp, signature=signature)
+
+
 def test_slack_router_exposes_signed_command_endpoint(tmp_path: Path) -> None:
     app = FastAPI()
     app.include_router(create_slack_router(_handler(tmp_path)))

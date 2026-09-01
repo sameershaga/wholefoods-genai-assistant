@@ -94,6 +94,8 @@ class SlackCommandResponse:
 class SlackCommandHandler:
     """Translate trusted slash commands into assistant requests."""
 
+    MAX_QUERY_LENGTH = 2_000
+
     def __init__(
         self,
         assistant_service: AssistantService,
@@ -129,6 +131,10 @@ class SlackCommandHandler:
         query = _single_field(fields, "text").strip()
         if not query:
             raise SlackRequestError("Slack command text must not be empty")
+        if len(query) > self.MAX_QUERY_LENGTH:
+            raise SlackRequestError(
+                f"Slack command text must not exceed {self.MAX_QUERY_LENGTH} characters"
+            )
         try:
             access_token = self._tokens[user_id]
         except KeyError as exc:
