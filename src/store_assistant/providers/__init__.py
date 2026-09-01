@@ -5,5 +5,21 @@ from store_assistant.providers.embeddings import (
     EmbeddingProvider,
     LocalHashEmbeddingProvider,
 )
+from store_assistant.providers.vector_store import (
+    InMemoryVectorStore,
+    VectorRecord,
+    VectorSearchResult,
+    VectorStore,
+    VectorStoreError,
+)
 
-__all__ = ["EmbeddingError", "EmbeddingProvider", "LocalHashEmbeddingProvider"]
+__all__ = [
+    "EmbeddingError",
+    "EmbeddingProvider",
+    "InMemoryVectorStore",
+    "LocalHashEmbeddingProvider",
+    "VectorRecord",
+    "VectorSearchResult",
+    "VectorStore",
+    "VectorStoreError",
+]
