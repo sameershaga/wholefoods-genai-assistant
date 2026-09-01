@@ -84,14 +84,16 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | `STORE_ASSISTANT_EMBEDDING_DIMENSIONS` | Local vector size | `384` |
 | `AWS_REGION`, `BEDROCK_EMBEDDING_MODEL_ID` | Titan/Bedrock | reserved |
 | `PINECONE_API_KEY`, `PINECONE_INDEX_HOST` | Pinecone | reserved |
-| `OKTA_ISSUER`, `OKTA_AUDIENCE` | Okta OIDC | reserved |
+| `OKTA_ISSUER`, `OKTA_AUDIENCE` | Okta token verification | hosted adapter |
+| `OKTA_STORE_ID_CLAIM` | Trusted store-scope claim | `store_id` |
 | `SLACK_SIGNING_SECRET` | Slack request verification | unset |
 | `STORE_ASSISTANT_SLACK_USER_TOKENS` | Slack user-to-token JSON map | unset |
 
-`AmazonTitanEmbeddingProvider` and `PineconeVectorStore` implement hosted
-provider boundaries using injected SDK clients; credentials, retries, and
-timeouts remain deployment configuration. Other hosted adapters are not yet
-implemented.
+`AmazonTitanEmbeddingProvider`, `PineconeVectorStore`, and
+`OktaOIDCAuthProvider` implement hosted provider boundaries using injected SDK
+clients. The OIDC verifier must validate the JWT signature, issuer, audience,
+expiry, and other standard claims before returning identity claims. Credentials,
+key caching, retries, and timeouts remain deployment configuration.
 Never commit real secrets.
 
 ## Slack interface
@@ -183,8 +185,9 @@ circuit breakers, readiness checks, autoscaling, and cost monitoring.
 
 ## Limitations
 
-- Okta and deployed Slack wiring remain extension points; Titan and Pinecone
-  adapters are implemented but are not selected by the offline composition root.
+- Hosted provider and deployed Slack composition remain extension points; Titan,
+  Pinecone, and Okta-compatible OIDC adapters are implemented but are not selected
+  by the offline composition root.
 - Runtime startup accepts one supplier contract PDF; batch/directory ingestion
   is not yet implemented.
 - The vector index is in-memory and rebuilt at startup.

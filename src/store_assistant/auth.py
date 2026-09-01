@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Mapping, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from store_assistant.ingestion.normalization import NormalizationError, normalize_store_id
 
@@ -46,6 +47,68 @@ class AuthProvider(Protocol):
     def authenticate(self, access_token: str) -> UserContext:
         """Validate a token and return trusted, normalized request context."""
         ...
+
+
+class OIDCTokenVerifier(Protocol):
+    """Narrow boundary for an SDK-backed JWT/OIDC verifier."""
+
+    def verify(self, token: str, *, issuer: str, audience: str) -> Mapping[str, Any]:
+        """Verify token integrity and standard claims, then return its claims."""
+        ...
+
+
+class OktaOIDCAuthProvider:
+    """Okta-compatible OIDC adapter using an injected cryptographic verifier."""
+
+    def __init__(
+        self,
+        verifier: OIDCTokenVerifier,
+        *,
+        issuer: str,
+        audience: str,
+        user_id_claim: str = "sub",
+        store_id_claim: str = "store_id",
+        display_name_claim: str = "name",
+    ) -> None:
+        self._verifier = verifier
+        self._issuer = self._required_setting(issuer, "issuer").rstrip("/")
+        self._audience = self._required_setting(audience, "audience")
+        self._user_id_claim = self._required_setting(user_id_claim, "user_id_claim")
+        self._store_id_claim = self._required_setting(store_id_claim, "store_id_claim")
+        self._display_name_claim = self._required_setting(display_name_claim, "display_name_claim")
+
+    @staticmethod
+    def _required_setting(value: str, name: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise AuthenticationError(f"{name} must not be empty")
+        return value.strip()
+
+    def authenticate(self, access_token: str) -> UserContext:
+        if not isinstance(access_token, str) or not access_token.strip():
+            raise AuthenticationError("access token is required")
+        try:
+            claims = self._verifier.verify(
+                access_token.strip(), issuer=self._issuer, audience=self._audience
+            )
+        except Exception as exc:
+            raise AuthenticationError("access token is invalid") from exc
+        if not isinstance(claims, Mapping):
+            raise AuthenticationError("verified token claims are invalid")
+
+        user_id = claims.get(self._user_id_claim)
+        store_id = claims.get(self._store_id_claim)
+        display_name = claims.get(self._display_name_claim)
+        if not isinstance(user_id, str):
+            raise AuthenticationError(f"token claim {self._user_id_claim!r} is invalid")
+        if not isinstance(store_id, (str, int)) or isinstance(store_id, bool):
+            raise AuthenticationError(f"token claim {self._store_id_claim!r} is invalid")
+        if display_name is not None and not isinstance(display_name, str):
+            raise AuthenticationError(f"token claim {self._display_name_claim!r} is invalid")
+        try:
+            normalized_store_id = normalize_store_id(store_id)
+        except (AttributeError, NormalizationError) as exc:
+            raise AuthenticationError(f"token claim {self._store_id_claim!r} is invalid") from exc
+        return UserContext(user_id, normalized_store_id, display_name)
 
 
 class MockAuthProvider:
