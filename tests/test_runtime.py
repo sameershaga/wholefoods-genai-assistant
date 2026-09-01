@@ -1,13 +1,17 @@
 import hmac
+import sys
 from hashlib import sha256
 from pathlib import Path
 from time import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlencode
 
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
-from store_assistant.runtime import LocalSettings, create_local_app
+from store_assistant.providers.embeddings import AmazonTitanEmbeddingProvider
+from store_assistant.runtime import LocalSettings, _create_embedding_provider, create_local_app
 
 
 def test_local_settings_load_from_environment(tmp_path: Path) -> None:
@@ -26,6 +30,7 @@ def test_local_settings_load_from_environment(tmp_path: Path) -> None:
     assert settings.supplier_contract_path == Path("fixtures/contract.pdf")
     assert settings.state_directory == tmp_path
     assert settings.embedding_dimensions == 128
+    assert settings.embedding_provider == "local"
     assert settings.slack_signing_secret is None
     assert settings.slack_user_tokens is None
 
@@ -38,6 +43,44 @@ def test_local_settings_reject_invalid_embedding_dimensions() -> None:
             assert "STORE_ASSISTANT_EMBEDDING_DIMENSIONS" in str(exc)
         else:
             raise AssertionError(f"expected invalid dimensions {value!r} to fail")
+
+
+def test_settings_and_factory_select_bedrock_from_environment(monkeypatch: MonkeyPatch) -> None:
+    client = object()
+    fake_boto3 = SimpleNamespace(client=lambda service, region_name: client)
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+    settings = LocalSettings.from_environment(
+        {
+            "STORE_ASSISTANT_EMBEDDING_PROVIDER": "bedrock",
+            "STORE_ASSISTANT_EMBEDDING_DIMENSIONS": "512",
+            "AWS_REGION": "us-west-2",
+            "BEDROCK_EMBEDDING_MODEL_ID": "test-titan-model",
+        }
+    )
+
+    provider = _create_embedding_provider(settings)
+
+    assert isinstance(provider, AmazonTitanEmbeddingProvider)
+    assert provider.client is client
+    assert provider.dimension == 512
+    assert provider.model_id == "test-titan-model"
+
+
+def test_settings_reject_invalid_embedding_provider_configuration() -> None:
+    invalid_environments = (
+        {"STORE_ASSISTANT_EMBEDDING_PROVIDER": "unknown"},
+        {
+            "STORE_ASSISTANT_EMBEDDING_PROVIDER": "bedrock",
+            "STORE_ASSISTANT_EMBEDDING_DIMENSIONS": "384",
+        },
+    )
+    for environment in invalid_environments:
+        try:
+            LocalSettings.from_environment(environment)
+        except ValueError as exc:
+            assert "EMBEDDING" in str(exc)
+        else:
+            raise AssertionError("expected invalid embedding provider configuration to fail")
 
 
 def test_local_runtime_loads_synthetic_data_and_enforces_store_isolation(

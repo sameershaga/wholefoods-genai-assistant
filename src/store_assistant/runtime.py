@@ -7,6 +7,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 
@@ -17,7 +18,11 @@ from store_assistant.feedback import SQLiteFeedbackRepository
 from store_assistant.ingestion.contracts import ingest_supplier_contracts
 from store_assistant.ingestion.delivery_logs import ingest_delivery_logs
 from store_assistant.ingestion.recipes import ingest_recipe_html
-from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
+from store_assistant.providers.embeddings import (
+    AmazonTitanEmbeddingProvider,
+    EmbeddingProvider,
+    LocalHashEmbeddingProvider,
+)
 from store_assistant.providers.llm import LocalExtractiveLLM
 from store_assistant.providers.reranking import LocalLexicalReranker
 from store_assistant.providers.vector_store import InMemoryVectorStore, VectorRecord
@@ -37,6 +42,9 @@ class LocalSettings:
     supplier_contract_path: Path | None = None
     state_directory: Path = Path(".local")
     embedding_dimensions: int = 384
+    embedding_provider: str = "local"
+    aws_region: str = "us-east-1"
+    bedrock_embedding_model_id: str = "amazon.titan-embed-text-v2:0"
     slack_signing_secret: str | None = None
     slack_user_tokens: Mapping[str, str] | None = None
 
@@ -51,6 +59,17 @@ class LocalSettings:
             raise ValueError("STORE_ASSISTANT_EMBEDDING_DIMENSIONS must be an integer") from exc
         if dimensions <= 0:
             raise ValueError("STORE_ASSISTANT_EMBEDDING_DIMENSIONS must be positive")
+        embedding_provider = values.get("STORE_ASSISTANT_EMBEDDING_PROVIDER", "local").strip()
+        if embedding_provider not in {"local", "bedrock"}:
+            raise ValueError("STORE_ASSISTANT_EMBEDDING_PROVIDER must be local or bedrock")
+        if embedding_provider == "bedrock" and dimensions not in {256, 512, 1024}:
+            raise ValueError(
+                "STORE_ASSISTANT_EMBEDDING_DIMENSIONS must be 256, 512, or 1024 for bedrock"
+            )
+        aws_region = values.get("AWS_REGION", "us-east-1").strip()
+        model_id = values.get("BEDROCK_EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0").strip()
+        if not aws_region or not model_id:
+            raise ValueError("AWS_REGION and BEDROCK_EMBEDDING_MODEL_ID must be non-empty")
         signing_secret = values.get("SLACK_SIGNING_SECRET", "").strip() or None
         slack_user_tokens = _load_slack_user_tokens(
             values.get("STORE_ASSISTANT_SLACK_USER_TOKENS", "")
@@ -75,6 +94,9 @@ class LocalSettings:
             ),
             state_directory=Path(values.get("STORE_ASSISTANT_STATE_DIRECTORY", ".local")),
             embedding_dimensions=dimensions,
+            embedding_provider=embedding_provider,
+            aws_region=aws_region,
+            bedrock_embedding_model_id=model_id,
             slack_signing_secret=signing_secret,
             slack_user_tokens=slack_user_tokens,
         )
@@ -89,7 +111,7 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
     ]
     if config.supplier_contract_path is not None:
         chunks.extend(ingest_supplier_contracts(config.supplier_contract_path))
-    embeddings = LocalHashEmbeddingProvider(config.embedding_dimensions)
+    embeddings = _create_embedding_provider(config)
     vector_store = InMemoryVectorStore(embeddings.dimension)
     vectors = embeddings.embed([chunk.text for chunk in chunks])
     vector_store.upsert(
@@ -148,6 +170,24 @@ def _load_slack_user_tokens(raw_value: str) -> dict[str, str] | None:
 def _optional_path(raw_value: str) -> Path | None:
     value = raw_value.strip()
     return Path(value) if value else None
+
+
+def _create_embedding_provider(config: LocalSettings) -> EmbeddingProvider:
+    if config.embedding_provider == "local":
+        return LocalHashEmbeddingProvider(config.embedding_dimensions)
+    try:
+        import boto3  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise RuntimeError(
+            "Bedrock embeddings require the optional AWS dependencies; "
+            "install the project with [aws]"
+        ) from exc
+    client: Any = boto3.client("bedrock-runtime", region_name=config.aws_region)
+    return AmazonTitanEmbeddingProvider(
+        client=client,
+        model_id=config.bedrock_embedding_model_id,
+        dimensions=config.embedding_dimensions,
+    )
 
 
 app = create_local_app()

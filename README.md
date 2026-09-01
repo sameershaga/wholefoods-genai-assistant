@@ -82,6 +82,7 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | `STORE_ASSISTANT_SUPPLIER_CONTRACT_PATH` | Supplier contract PDF or PDF directory | unset/disabled |
 | `STORE_ASSISTANT_STATE_DIRECTORY` | Logs and feedback | `.local` |
 | `STORE_ASSISTANT_EMBEDDING_DIMENSIONS` | Local vector size | `384` |
+| `STORE_ASSISTANT_EMBEDDING_PROVIDER` | `local` or Amazon `bedrock` | `local` |
 | `AWS_REGION`, `BEDROCK_EMBEDDING_MODEL_ID` | Titan/Bedrock | reserved |
 | `PINECONE_API_KEY`, `PINECONE_INDEX_HOST` | Pinecone | reserved |
 | `OKTA_ISSUER`, `OKTA_AUDIENCE` | Okta token verification | hosted adapter |
@@ -89,7 +90,9 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | `SLACK_SIGNING_SECRET` | Slack request verification | unset |
 | `STORE_ASSISTANT_SLACK_USER_TOKENS` | Slack user-to-token JSON map | unset |
 
-`AmazonTitanEmbeddingProvider`, `PineconeVectorStore`, and
+Set the embedding provider to `bedrock`, choose a Titan V2 dimension of 256,
+512, or 1024, and install `.[aws]` to let the runtime create its Bedrock client
+from the standard AWS credential chain. `AmazonTitanEmbeddingProvider`, `PineconeVectorStore`, and
 `OktaOIDCAuthProvider` implement hosted provider boundaries using injected SDK
 clients. The OIDC verifier must validate the JWT signature, issuer, audience,
 expiry, and other standard claims before returning identity claims. Credentials,
@@ -187,9 +190,8 @@ circuit breakers, readiness checks, autoscaling, and cost monitoring.
 
 ## Limitations
 
-- Hosted provider and deployed Slack composition remain extension points; Titan,
-  Pinecone, and Okta-compatible OIDC adapters are implemented but are not selected
-  by the offline composition root.
+- Pinecone and Okta-compatible OIDC adapters are implemented but are not yet
+  selected by the runtime composition root.
 - The vector index is in-memory and rebuilt at startup.
 - Local model substitutes have limited semantic/conversational quality.
 - Slack handling is synchronous; production should acknowledge quickly.
