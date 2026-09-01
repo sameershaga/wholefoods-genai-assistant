@@ -1,0 +1,29 @@
+[
+  {
+    "case_id": "brooklyn-oat-milk-isolation",
+    "query": "Do we have oat milk?",
+    "store_id": "brooklyn-01",
+    "filters": {"sku": "OAT001"},
+    "expected_document_ids": ["delivery:DLV-BK-1001:0"],
+    "answer_must_contain": ["12 cartons"],
+    "answer_must_not_contain": ["3 cartons", "8 cartons"]
+  },
+  {
+    "case_id": "manhattan-oat-milk-isolation",
+    "query": "How many cartons of oat milk are available?",
+    "store_id": "manhattan-01",
+    "filters": {"sku": "OAT001"},
+    "expected_document_ids": ["delivery:DLV-MN-1001:0"],
+    "answer_must_contain": ["3 cartons"],
+    "answer_must_not_contain": ["12 cartons", "8 cartons"]
+  },
+  {
+    "case_id": "queens-oat-milk-isolation",
+    "query": "Do we have unsweetened oat milk?",
+    "store_id": "queens-01",
+    "filters": {"sku": "OAT001"},
+    "expected_document_ids": ["delivery:DLV-QN-1001:0"],
+    "answer_must_contain": ["8 cartons"],
+    "answer_must_not_contain": ["12 cartons", "3 cartons"]
+  }
+]
