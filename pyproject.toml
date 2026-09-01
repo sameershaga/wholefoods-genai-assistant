@@ -24,6 +24,9 @@ aws = [
 pinecone = [
   "pinecone>=5,<8",
 ]
+okta = [
+  "PyJWT[crypto]>=2.9,<3",
+]
 dev = [
   "httpx>=0.27,<1",
   "mypy>=1.11",

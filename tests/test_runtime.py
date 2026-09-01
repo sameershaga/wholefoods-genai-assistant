@@ -10,10 +10,12 @@ from urllib.parse import urlencode
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
+from store_assistant.auth import OktaOIDCAuthProvider
 from store_assistant.providers.embeddings import AmazonTitanEmbeddingProvider
 from store_assistant.providers.vector_store import PineconeVectorStore
 from store_assistant.runtime import (
     LocalSettings,
+    _create_auth_provider,
     _create_embedding_provider,
     _create_vector_store,
     create_local_app,
@@ -38,6 +40,7 @@ def test_local_settings_load_from_environment(tmp_path: Path) -> None:
     assert settings.embedding_dimensions == 128
     assert settings.embedding_provider == "local"
     assert settings.vector_store_provider == "local"
+    assert settings.auth_provider == "mock"
     assert settings.slack_signing_secret is None
     assert settings.slack_user_tokens is None
 
@@ -129,6 +132,62 @@ def test_settings_reject_invalid_pinecone_configuration() -> None:
             assert "PINECONE" in str(exc) or "VECTOR_STORE_PROVIDER" in str(exc)
         else:
             raise AssertionError("expected invalid Pinecone configuration to fail")
+
+
+def test_settings_and_factory_select_okta_from_environment(monkeypatch: MonkeyPatch) -> None:
+    signing_key = SimpleNamespace(key="public-key")
+    jwks_client = MagicMock()
+    jwks_client.get_signing_key_from_jwt.return_value = signing_key
+    jwks_constructor = MagicMock(return_value=jwks_client)
+    decode = MagicMock(
+        return_value={"sub": "manager-9", "location": "brooklyn-01", "name": "Morgan"}
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "jwt",
+        SimpleNamespace(PyJWKClient=jwks_constructor, decode=decode),
+    )
+    settings = LocalSettings.from_environment(
+        {
+            "STORE_ASSISTANT_AUTH_PROVIDER": "okta",
+            "OKTA_ISSUER": "https://example.okta.com/oauth2/default/",
+            "OKTA_AUDIENCE": "api://stores",
+            "OKTA_STORE_ID_CLAIM": "location",
+        }
+    )
+
+    provider = _create_auth_provider(settings)
+    context = provider.authenticate("signed-access-token")
+
+    assert isinstance(provider, OktaOIDCAuthProvider)
+    assert context.store_id == "BROOKLYN-01"
+    jwks_constructor.assert_called_once_with("https://example.okta.com/oauth2/default/v1/keys")
+    decode.assert_called_once_with(
+        "signed-access-token",
+        "public-key",
+        algorithms=["RS256"],
+        audience="api://stores",
+        issuer="https://example.okta.com/oauth2/default",
+    )
+
+
+def test_settings_reject_invalid_okta_configuration() -> None:
+    invalid_environments = (
+        {"STORE_ASSISTANT_AUTH_PROVIDER": "unknown"},
+        {"STORE_ASSISTANT_AUTH_PROVIDER": "okta"},
+        {
+            "STORE_ASSISTANT_AUTH_PROVIDER": "okta",
+            "OKTA_ISSUER": "https://example.okta.com",
+        },
+        {"OKTA_STORE_ID_CLAIM": " "},
+    )
+    for environment in invalid_environments:
+        try:
+            LocalSettings.from_environment(environment)
+        except ValueError as exc:
+            assert "AUTH_PROVIDER" in str(exc) or "OKTA" in str(exc)
+        else:
+            raise AssertionError("expected invalid Okta configuration to fail")
 
 
 def test_local_runtime_loads_synthetic_data_and_enforces_store_isolation(

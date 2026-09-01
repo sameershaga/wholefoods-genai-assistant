@@ -13,7 +13,13 @@ from fastapi import FastAPI
 
 from store_assistant.answering import AnswerService
 from store_assistant.api import create_app
-from store_assistant.auth import MockAuthProvider, UserContext
+from store_assistant.auth import (
+    AuthProvider,
+    MockAuthProvider,
+    OIDCTokenVerifier,
+    OktaOIDCAuthProvider,
+    UserContext,
+)
 from store_assistant.feedback import SQLiteFeedbackRepository
 from store_assistant.ingestion.contracts import ingest_supplier_contracts
 from store_assistant.ingestion.delivery_logs import ingest_delivery_logs
@@ -54,6 +60,10 @@ class LocalSettings:
     pinecone_api_key: str | None = None
     pinecone_index_host: str | None = None
     pinecone_namespace: str | None = None
+    auth_provider: str = "mock"
+    okta_issuer: str | None = None
+    okta_audience: str | None = None
+    okta_store_id_claim: str = "store_id"
     slack_signing_secret: str | None = None
     slack_user_tokens: Mapping[str, str] | None = None
 
@@ -89,6 +99,16 @@ class LocalSettings:
             pinecone_api_key is None or pinecone_index_host is None
         ):
             raise ValueError("PINECONE_API_KEY and PINECONE_INDEX_HOST are required for pinecone")
+        auth_provider = values.get("STORE_ASSISTANT_AUTH_PROVIDER", "mock").strip()
+        if auth_provider not in {"mock", "okta"}:
+            raise ValueError("STORE_ASSISTANT_AUTH_PROVIDER must be mock or okta")
+        okta_issuer = values.get("OKTA_ISSUER", "").strip() or None
+        okta_audience = values.get("OKTA_AUDIENCE", "").strip() or None
+        okta_store_id_claim = values.get("OKTA_STORE_ID_CLAIM", "store_id").strip()
+        if auth_provider == "okta" and (okta_issuer is None or okta_audience is None):
+            raise ValueError("OKTA_ISSUER and OKTA_AUDIENCE are required for okta")
+        if not okta_store_id_claim:
+            raise ValueError("OKTA_STORE_ID_CLAIM must be non-empty")
         signing_secret = values.get("SLACK_SIGNING_SECRET", "").strip() or None
         slack_user_tokens = _load_slack_user_tokens(
             values.get("STORE_ASSISTANT_SLACK_USER_TOKENS", "")
@@ -120,6 +140,10 @@ class LocalSettings:
             pinecone_api_key=pinecone_api_key,
             pinecone_index_host=pinecone_index_host,
             pinecone_namespace=pinecone_namespace,
+            auth_provider=auth_provider,
+            okta_issuer=okta_issuer,
+            okta_audience=okta_audience,
+            okta_store_id_claim=okta_store_id_claim,
             slack_signing_secret=signing_secret,
             slack_user_tokens=slack_user_tokens,
         )
@@ -144,13 +168,7 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
         ]
     )
 
-    auth = MockAuthProvider(
-        {
-            "local-brooklyn-token": UserContext("brooklyn-manager", "brooklyn-01"),
-            "local-manhattan-token": UserContext("manhattan-manager", "manhattan-01"),
-            "local-queens-token": UserContext("queens-manager", "queens-01"),
-        }
-    )
+    auth = _create_auth_provider(config)
     retrieval = RetrievalService(embeddings, vector_store, LocalLexicalReranker())
     assistant = AssistantService(
         AuthenticatedRetrievalService(auth, retrieval, source_router=infer_source_type),
@@ -228,6 +246,54 @@ def _create_vector_store(config: LocalSettings, dimension: int) -> VectorStore:
     client = Pinecone(api_key=config.pinecone_api_key)
     index: Any = client.Index(host=config.pinecone_index_host)
     return PineconeVectorStore(index, dimension, namespace=config.pinecone_namespace)
+
+
+class _PyJWTOIDCTokenVerifier:
+    """Verify Okta access tokens using discovery-compatible JWKS keys."""
+
+    def __init__(self, jwt_module: Any, issuer: str) -> None:
+        self._jwt = jwt_module
+        self._jwks = jwt_module.PyJWKClient(f"{issuer.rstrip('/')}/v1/keys")
+
+    def verify(self, token: str, *, issuer: str, audience: str) -> Mapping[str, Any]:
+        signing_key = self._jwks.get_signing_key_from_jwt(token)
+        claims: Any = self._jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=audience,
+            issuer=issuer,
+        )
+        if not isinstance(claims, Mapping):
+            raise ValueError("verified token claims are invalid")
+        return claims
+
+
+def _create_auth_provider(config: LocalSettings) -> AuthProvider:
+    if config.auth_provider == "mock":
+        return MockAuthProvider(
+            {
+                "local-brooklyn-token": UserContext("brooklyn-manager", "brooklyn-01"),
+                "local-manhattan-token": UserContext("manhattan-manager", "manhattan-01"),
+                "local-queens-token": UserContext("queens-manager", "queens-01"),
+            }
+        )
+    try:
+        import jwt
+    except ImportError as exc:
+        raise RuntimeError(
+            "Okta authentication requires the optional OIDC dependencies; "
+            "install the project with [okta]"
+        ) from exc
+    if config.okta_issuer is None or config.okta_audience is None:
+        raise ValueError("Okta issuer and audience must be configured")
+    verifier: OIDCTokenVerifier = _PyJWTOIDCTokenVerifier(jwt, config.okta_issuer)
+    return OktaOIDCAuthProvider(
+        verifier,
+        issuer=config.okta_issuer,
+        audience=config.okta_audience,
+        store_id_claim=config.okta_store_id_claim,
+    )
 
 
 app = create_local_app()

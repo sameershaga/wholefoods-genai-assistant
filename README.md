@@ -84,6 +84,7 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | `STORE_ASSISTANT_EMBEDDING_DIMENSIONS` | Local vector size | `384` |
 | `STORE_ASSISTANT_EMBEDDING_PROVIDER` | `local` or Amazon `bedrock` | `local` |
 | `STORE_ASSISTANT_VECTOR_STORE_PROVIDER` | `local` or `pinecone` | `local` |
+| `STORE_ASSISTANT_AUTH_PROVIDER` | `mock` or `okta` | `mock` |
 | `AWS_REGION`, `BEDROCK_EMBEDDING_MODEL_ID` | Titan/Bedrock | reserved |
 | `PINECONE_API_KEY`, `PINECONE_INDEX_HOST`, `PINECONE_NAMESPACE` | Pinecone | unset |
 | `OKTA_ISSUER`, `OKTA_AUDIENCE` | Okta token verification | hosted adapter |
@@ -100,6 +101,9 @@ index host, and install `.[pinecone]` to use an existing Pinecone index whose
 dimension matches the embedding provider. The OIDC verifier must validate the JWT signature, issuer, audience,
 expiry, and other standard claims before returning identity claims. Credentials,
 key caching, retries, and timeouts remain deployment configuration.
+Set the auth provider to `okta`, configure issuer, audience, and the trusted
+store claim, and install `.[okta]`; the runtime verifies RS256 access tokens
+against the issuer's JWKS endpoint. Mock tokens remain the offline default.
 Never commit real secrets.
 
 ## Slack interface
@@ -193,8 +197,8 @@ circuit breakers, readiness checks, autoscaling, and cost monitoring.
 
 ## Limitations
 
-- Okta-compatible OIDC is implemented but is not yet selected by the runtime
-  composition root.
+- Hosted provider clients depend on their optional SDK extras and valid cloud
+  credentials/configuration.
 - The local vector index is in-memory and rebuilt at startup; configured Pinecone
   records are upserted again during each startup.
 - Local model substitutes have limited semantic/conversational quality.
