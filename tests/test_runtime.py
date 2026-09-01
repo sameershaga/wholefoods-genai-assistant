@@ -5,6 +5,32 @@ from fastapi.testclient import TestClient
 from store_assistant.runtime import LocalSettings, create_local_app
 
 
+def test_local_settings_load_from_environment(tmp_path: Path) -> None:
+    settings = LocalSettings.from_environment(
+        {
+            "STORE_ASSISTANT_DELIVERY_LOGS_PATH": "fixtures/deliveries.json",
+            "STORE_ASSISTANT_STATE_DIRECTORY": str(tmp_path),
+            "STORE_ASSISTANT_EMBEDDING_DIMENSIONS": "128",
+        }
+    )
+
+    assert settings.delivery_logs_path == Path("fixtures/deliveries.json")
+    assert settings.state_directory == tmp_path
+    assert settings.embedding_dimensions == 128
+
+
+def test_local_settings_reject_invalid_embedding_dimensions() -> None:
+    for value in ("zero", "0", "-1"):
+        try:
+            LocalSettings.from_environment(
+                {"STORE_ASSISTANT_EMBEDDING_DIMENSIONS": value}
+            )
+        except ValueError as exc:
+            assert "STORE_ASSISTANT_EMBEDDING_DIMENSIONS" in str(exc)
+        else:
+            raise AssertionError(f"expected invalid dimensions {value!r} to fail")
+
+
 def test_local_runtime_loads_synthetic_data_and_enforces_store_isolation(
     tmp_path: Path,
 ) -> None:

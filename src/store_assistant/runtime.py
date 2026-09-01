@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,10 +31,35 @@ class LocalSettings:
     state_directory: Path = Path(".local")
     embedding_dimensions: int = 384
 
+    @classmethod
+    def from_environment(cls, environ: Mapping[str, str] | None = None) -> LocalSettings:
+        """Load local runtime settings from environment variables."""
+        values = os.environ if environ is None else environ
+        raw_dimensions = values.get("STORE_ASSISTANT_EMBEDDING_DIMENSIONS", "384")
+        try:
+            dimensions = int(raw_dimensions)
+        except ValueError as exc:
+            raise ValueError(
+                "STORE_ASSISTANT_EMBEDDING_DIMENSIONS must be an integer"
+            ) from exc
+        if dimensions <= 0:
+            raise ValueError(
+                "STORE_ASSISTANT_EMBEDDING_DIMENSIONS must be positive"
+            )
+        return cls(
+            delivery_logs_path=Path(
+                values.get("STORE_ASSISTANT_DELIVERY_LOGS_PATH", "data/delivery_logs.json")
+            ),
+            state_directory=Path(
+                values.get("STORE_ASSISTANT_STATE_DIRECTORY", ".local")
+            ),
+            embedding_dimensions=dimensions,
+        )
+
 
 def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
     """Build an API using synthetic data and providers requiring no paid services."""
-    config = settings or LocalSettings()
+    config = settings or LocalSettings.from_environment()
     chunks = ingest_delivery_logs(config.delivery_logs_path)
     embeddings = LocalHashEmbeddingProvider(config.embedding_dimensions)
     vector_store = InMemoryVectorStore(embeddings.dimension)

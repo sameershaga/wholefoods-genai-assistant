@@ -10,6 +10,11 @@ The synthetic local identities use bearer tokens `local-brooklyn-token`,
 `local-manhattan-token`, and `local-queens-token`. Runtime request logs and
 feedback are stored under `.local/`.
 
+Runtime paths and embedding dimensions can be configured with environment
+variables documented in `.env.example`. Copying that file to `.env` is useful
+for reference, but Uvicorn does not load it automatically; export the values or
+start Uvicorn with `--env-file .env` (which requires `python-dotenv`).
+
 ## Docker
 
 Build and run the same offline API in a non-root container:
