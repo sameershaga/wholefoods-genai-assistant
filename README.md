@@ -83,7 +83,8 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | `AWS_REGION`, `BEDROCK_EMBEDDING_MODEL_ID` | Titan/Bedrock | reserved |
 | `PINECONE_API_KEY`, `PINECONE_INDEX_HOST` | Pinecone | reserved |
 | `OKTA_ISSUER`, `OKTA_AUDIENCE` | Okta OIDC | reserved |
-| `SLACK_SIGNING_SECRET` | Slack verification | reserved |
+| `SLACK_SIGNING_SECRET` | Slack request verification | unset |
+| `STORE_ASSISTANT_SLACK_USER_TOKENS` | Slack user-to-token JSON map | unset |
 
 Hosted adapters are not yet implemented. Never commit real secrets.
 
@@ -92,8 +93,9 @@ Hosted adapters are not yet implemented. Never commit real secrets.
 `SlackCommandHandler` verifies Slack v0 HMAC signatures, rejects requests
 older than five minutes, maps a trusted Slack user ID to an access token, and
 returns an ephemeral response from `POST /slack/commands`. The local
-composition root does not enable the route because it has no signing secret or
-user mapping; an integration root passes a configured handler to `create_app`.
+composition root enables the route when both `SLACK_SIGNING_SECRET` and
+`STORE_ASSISTANT_SLACK_USER_TOKENS` are set. For example, the latter can be
+`{"U123":"local-brooklyn-token"}`. Leaving both unset disables the route.
 
 ```text
 /store-assistant Do we have oat milk?

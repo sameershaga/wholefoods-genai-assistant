@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ from store_assistant.providers.vector_store import InMemoryVectorStore, VectorRe
 from store_assistant.request_logging import JSONLRequestLogRepository
 from store_assistant.retrieval import RetrievalService
 from store_assistant.services import AssistantService, AuthenticatedRetrievalService
+from store_assistant.slack import SlackCommandHandler, SlackSignatureVerifier
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +32,8 @@ class LocalSettings:
     delivery_logs_path: Path = Path("data/delivery_logs.json")
     state_directory: Path = Path(".local")
     embedding_dimensions: int = 384
+    slack_signing_secret: str | None = None
+    slack_user_tokens: Mapping[str, str] | None = None
 
     @classmethod
     def from_environment(cls, environ: Mapping[str, str] | None = None) -> LocalSettings:
@@ -39,21 +43,26 @@ class LocalSettings:
         try:
             dimensions = int(raw_dimensions)
         except ValueError as exc:
-            raise ValueError(
-                "STORE_ASSISTANT_EMBEDDING_DIMENSIONS must be an integer"
-            ) from exc
+            raise ValueError("STORE_ASSISTANT_EMBEDDING_DIMENSIONS must be an integer") from exc
         if dimensions <= 0:
+            raise ValueError("STORE_ASSISTANT_EMBEDDING_DIMENSIONS must be positive")
+        signing_secret = values.get("SLACK_SIGNING_SECRET", "").strip() or None
+        slack_user_tokens = _load_slack_user_tokens(
+            values.get("STORE_ASSISTANT_SLACK_USER_TOKENS", "")
+        )
+        if (signing_secret is None) != (slack_user_tokens is None):
             raise ValueError(
-                "STORE_ASSISTANT_EMBEDDING_DIMENSIONS must be positive"
+                "SLACK_SIGNING_SECRET and STORE_ASSISTANT_SLACK_USER_TOKENS "
+                "must be configured together"
             )
         return cls(
             delivery_logs_path=Path(
                 values.get("STORE_ASSISTANT_DELIVERY_LOGS_PATH", "data/delivery_logs.json")
             ),
-            state_directory=Path(
-                values.get("STORE_ASSISTANT_STATE_DIRECTORY", ".local")
-            ),
+            state_directory=Path(values.get("STORE_ASSISTANT_STATE_DIRECTORY", ".local")),
             embedding_dimensions=dimensions,
+            slack_signing_secret=signing_secret,
+            slack_user_tokens=slack_user_tokens,
         )
 
 
@@ -85,7 +94,36 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
         JSONLRequestLogRepository(config.state_directory / "requests.jsonl"),
     )
     feedback = SQLiteFeedbackRepository(config.state_directory / "feedback.sqlite3")
-    return create_app(assistant, auth, feedback)
+    slack_handler = None
+    if config.slack_signing_secret is not None and config.slack_user_tokens is not None:
+        slack_handler = SlackCommandHandler(
+            assistant,
+            SlackSignatureVerifier(config.slack_signing_secret),
+            config.slack_user_tokens,
+        )
+    return create_app(assistant, auth, feedback, slack_handler=slack_handler)
+
+
+def _load_slack_user_tokens(raw_value: str) -> dict[str, str] | None:
+    if not raw_value.strip():
+        return None
+    try:
+        value = json.loads(raw_value)
+    except json.JSONDecodeError as exc:
+        raise ValueError("STORE_ASSISTANT_SLACK_USER_TOKENS must be a JSON object") from exc
+    if (
+        not isinstance(value, dict)
+        or not value
+        or any(
+            not isinstance(user_id, str)
+            or not user_id.strip()
+            or not isinstance(token, str)
+            or not token.strip()
+            for user_id, token in value.items()
+        )
+    ):
+        raise ValueError("STORE_ASSISTANT_SLACK_USER_TOKENS must map Slack user IDs to tokens")
+    return {user_id.strip(): token.strip() for user_id, token in value.items()}
 
 
 app = create_local_app()
