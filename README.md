@@ -88,7 +88,10 @@ Export them or use Uvicorn's `--env-file` option with `python-dotenv`.
 | `SLACK_SIGNING_SECRET` | Slack request verification | unset |
 | `STORE_ASSISTANT_SLACK_USER_TOKENS` | Slack user-to-token JSON map | unset |
 
-Hosted adapters are not yet implemented. Never commit real secrets.
+`AmazonTitanEmbeddingProvider` implements the embedding boundary using an
+injected Bedrock Runtime client; AWS credentials, retries, and timeouts remain
+deployment configuration. Other hosted adapters are not yet implemented.
+Never commit real secrets.
 
 ## Slack interface
 
@@ -179,7 +182,8 @@ circuit breakers, readiness checks, autoscaling, and cost monitoring.
 
 ## Limitations
 
-- Bedrock, Pinecone, Okta, and deployed Slack wiring remain extension points.
+- Pinecone, Okta, and deployed Slack wiring remain extension points; the Titan
+  adapter is implemented but is not selected by the offline composition root.
 - Runtime startup accepts one supplier contract PDF; batch/directory ingestion
   is not yet implemented.
 - The vector index is in-memory and rebuilt at startup.

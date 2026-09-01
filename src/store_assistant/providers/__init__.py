@@ -1,6 +1,7 @@
 """External-service provider boundaries and local implementations."""
 
 from store_assistant.providers.embeddings import (
+    AmazonTitanEmbeddingProvider,
     EmbeddingError,
     EmbeddingProvider,
     LocalHashEmbeddingProvider,
@@ -27,6 +28,7 @@ from store_assistant.providers.vector_store import (
 )
 
 __all__ = [
+    "AmazonTitanEmbeddingProvider",
     "EmbeddingError",
     "EmbeddingProvider",
     "GeneratedAnswer",
