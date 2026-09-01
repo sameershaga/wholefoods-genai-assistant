@@ -5,6 +5,12 @@ from store_assistant.providers.embeddings import (
     EmbeddingProvider,
     LocalHashEmbeddingProvider,
 )
+from store_assistant.providers.llm import (
+    GeneratedAnswer,
+    LLMError,
+    LLMProvider,
+    LocalExtractiveLLM,
+)
 from store_assistant.providers.reranking import (
     LocalLexicalReranker,
     RerankCandidate,
@@ -23,8 +29,12 @@ from store_assistant.providers.vector_store import (
 __all__ = [
     "EmbeddingError",
     "EmbeddingProvider",
+    "GeneratedAnswer",
     "InMemoryVectorStore",
     "LocalHashEmbeddingProvider",
+    "LLMError",
+    "LLMProvider",
+    "LocalExtractiveLLM",
     "LocalLexicalReranker",
     "RerankCandidate",
     "Reranker",
