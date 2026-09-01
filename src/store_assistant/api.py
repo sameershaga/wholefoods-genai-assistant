@@ -13,6 +13,7 @@ from store_assistant.feedback import (
 )
 from store_assistant.retrieval import RetrievalError
 from store_assistant.services import AssistantService
+from store_assistant.slack import SlackCommandHandler, create_slack_router
 
 
 class QueryRequest(BaseModel):
@@ -54,10 +55,14 @@ def create_app(
     assistant_service: AssistantService,
     auth_provider: AuthProvider,
     feedback_repository: FeedbackRepository,
+    *,
+    slack_handler: SlackCommandHandler | None = None,
 ) -> FastAPI:
     """Create an HTTP adapter with dependencies supplied by the composition root."""
 
     app = FastAPI(title="Store Operations Assistant", version="0.1.0")
+    if slack_handler is not None:
+        app.include_router(create_slack_router(slack_handler))
 
     def access_token(authorization: str | None = Header(default=None)) -> str:
         scheme, _, token = (authorization or "").partition(" ")

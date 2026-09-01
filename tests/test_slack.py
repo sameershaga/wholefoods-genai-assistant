@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+import hmac
+from hashlib import sha256
+from pathlib import Path
+from urllib.parse import urlencode
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from store_assistant.answering import AnswerService
+from store_assistant.auth import MockAuthProvider, UserContext
+from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
+from store_assistant.providers.llm import LocalExtractiveLLM
+from store_assistant.providers.reranking import LocalLexicalReranker
+from store_assistant.providers.vector_store import InMemoryVectorStore, VectorRecord
+from store_assistant.request_logging import JSONLRequestLogRepository
+from store_assistant.retrieval import RetrievalService
+from store_assistant.services import AssistantService, AuthenticatedRetrievalService
+from store_assistant.slack import (
+    SlackCommandHandler,
+    SlackRequestError,
+    SlackSignatureVerifier,
+    create_slack_router,
+)
+
+NOW = 1_700_000_000
+SECRET = "local-signing-secret"
+
+
+def _handler(tmp_path: Path) -> SlackCommandHandler:
+    embeddings = LocalHashEmbeddingProvider(dimensions=32)
+    store = InMemoryVectorStore(dimension=32)
+    texts = ("Brooklyn has 12 cartons of oat milk", "Manhattan has 3 cartons of oat milk")
+    store.upsert([
+        VectorRecord(f"delivery-{store_id.lower()}", text, vector, {"store_id": store_id})
+        for store_id, text, vector in zip(
+            ("BROOKLYN", "MANHATTAN"), texts, embeddings.embed(texts), strict=True
+        )
+    ])
+    auth = MockAuthProvider({"brooklyn-token": UserContext("manager-1", "BROOKLYN")})
+    assistant = AssistantService(
+        AuthenticatedRetrievalService(
+            auth, RetrievalService(embeddings, store, LocalLexicalReranker())
+        ),
+        AnswerService(LocalExtractiveLLM()),
+        JSONLRequestLogRepository(tmp_path / "requests.jsonl"),
+        request_id_factory=lambda: "request-1",
+    )
+    return SlackCommandHandler(
+        assistant,
+        SlackSignatureVerifier(SECRET, clock=lambda: NOW),
+        {"U123": "brooklyn-token"},
+    )
+
+
+def _signed(body: bytes, timestamp: int = NOW) -> tuple[str, str]:
+    stamp = str(timestamp)
+    digest = hmac.new(SECRET.encode(), b"v0:" + stamp.encode() + b":" + body, sha256)
+    return stamp, "v0=" + digest.hexdigest()
+
+
+def test_slack_command_returns_cited_store_isolated_answer(tmp_path: Path) -> None:
+    body = urlencode({"user_id": "U123", "text": "Do we have oat milk?"}).encode()
+    timestamp, signature = _signed(body)
+
+    response = _handler(tmp_path).handle(body, timestamp=timestamp, signature=signature)
+
+    assert response.response_type == "ephemeral"
+    assert "12 cartons" in response.text
+    assert "3 cartons" not in response.text
+    assert "Sources: delivery-brooklyn" in response.text
+    assert "Request ID: request-1" in response.text
+
+
+@pytest.mark.parametrize(
+    ("timestamp", "signature", "match"),
+    [(str(NOW), "v0=wrong", "invalid"), (str(NOW - 301), "v0=wrong", "stale")],
+)
+def test_slack_command_rejects_untrusted_requests(
+    tmp_path: Path, timestamp: str, signature: str, match: str
+) -> None:
+    with pytest.raises(SlackRequestError, match=match):
+        _handler(tmp_path).handle(
+            b"user_id=U123&text=oat+milk",
+            timestamp=timestamp,
+            signature=signature,
+        )
+
+
+def test_slack_command_rejects_unknown_user_and_empty_query(tmp_path: Path) -> None:
+    for fields, match in [({"user_id": "OTHER", "text": "oats"}, "not authorized"),
+                          ({"user_id": "U123", "text": " "}, "text")]:
+        body = urlencode(fields).encode()
+        timestamp, signature = _signed(body)
+        with pytest.raises(SlackRequestError, match=match):
+            _handler(tmp_path).handle(body, timestamp=timestamp, signature=signature)
+
+
+def test_slack_router_exposes_signed_command_endpoint(tmp_path: Path) -> None:
+    app = FastAPI()
+    app.include_router(create_slack_router(_handler(tmp_path)))
+    body = urlencode({"user_id": "U123", "text": "oat milk"}).encode()
+    timestamp, signature = _signed(body)
+
+    response = TestClient(app).post(
+        "/slack/commands",
+        content=body,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Slack-Request-Timestamp": timestamp,
+            "X-Slack-Signature": signature,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["response_type"] == "ephemeral"
+    assert "12 cartons" in response.json()["text"]
