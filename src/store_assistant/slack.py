@@ -15,12 +15,17 @@ from fastapi import APIRouter, HTTPException, Request
 
 from store_assistant.auth import AuthenticationError
 from store_assistant.feedback import FeedbackError, FeedbackRating, FeedbackRepository
+from store_assistant.providers.llm import LLMError
 from store_assistant.retrieval import RetrievalError
 from store_assistant.services import AssistantService
 
 
 class SlackRequestError(ValueError):
     """Raised when a Slack request is invalid or cannot be trusted."""
+
+
+class SlackProviderError(RuntimeError):
+    """Raised when an upstream provider cannot fulfill a Slack request."""
 
 
 class SlackSignatureVerifier:
@@ -145,6 +150,8 @@ class SlackCommandHandler:
             result = self._assistant.ask(access_token, query)
         except (AuthenticationError, RetrievalError) as exc:
             raise SlackRequestError(str(exc)) from exc
+        except LLMError as exc:
+            raise SlackProviderError(str(exc)) from exc
         references = ", ".join(result.answer.citations) or "none"
         return SlackCommandResponse(
             text=(f"{result.answer.text}\nSources: {references}\nRequest ID: {result.request_id}"),
@@ -213,6 +220,8 @@ def create_slack_router(handler: SlackCommandHandler) -> APIRouter:
             )
         except SlackRequestError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except SlackProviderError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
         return response.as_dict()
 
     @router.post("/slack/interactions")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import json
+from collections.abc import Sequence
 from hashlib import sha256
 from pathlib import Path
 from urllib.parse import urlencode
@@ -14,8 +15,13 @@ from store_assistant.answering import AnswerService
 from store_assistant.auth import MockAuthProvider, UserContext
 from store_assistant.feedback import SQLiteFeedbackRepository
 from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
-from store_assistant.providers.llm import LocalExtractiveLLM
-from store_assistant.providers.reranking import LocalLexicalReranker
+from store_assistant.providers.llm import (
+    GeneratedAnswer,
+    LLMError,
+    LLMProvider,
+    LocalExtractiveLLM,
+)
+from store_assistant.providers.reranking import LocalLexicalReranker, RerankResult
 from store_assistant.providers.vector_store import InMemoryVectorStore, VectorRecord
 from store_assistant.request_logging import JSONLRequestLogRepository
 from store_assistant.retrieval import RetrievalService
@@ -32,7 +38,9 @@ SECRET = "local-signing-secret"
 
 
 def _handler(
-    tmp_path: Path, feedback: SQLiteFeedbackRepository | None = None
+    tmp_path: Path,
+    feedback: SQLiteFeedbackRepository | None = None,
+    llm: LLMProvider | None = None,
 ) -> SlackCommandHandler:
     embeddings = LocalHashEmbeddingProvider(dimensions=32)
     store = InMemoryVectorStore(dimension=32)
@@ -50,7 +58,7 @@ def _handler(
         AuthenticatedRetrievalService(
             auth, RetrievalService(embeddings, store, LocalLexicalReranker())
         ),
-        AnswerService(LocalExtractiveLLM()),
+        AnswerService(llm or LocalExtractiveLLM()),
         JSONLRequestLogRepository(tmp_path / "requests.jsonl"),
         request_id_factory=lambda: "request-1",
     )
@@ -148,6 +156,30 @@ def test_slack_router_exposes_signed_command_endpoint(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["response_type"] == "ephemeral"
     assert "12 cartons" in response.json()["text"]
+
+
+def test_slack_router_reports_llm_provider_failure_as_bad_gateway(tmp_path: Path) -> None:
+    class FailingLLM:
+        def generate(self, query: str, context: Sequence[RerankResult]) -> GeneratedAnswer:
+            raise LLMError("answer provider unavailable")
+
+    app = FastAPI()
+    app.include_router(create_slack_router(_handler(tmp_path, llm=FailingLLM())))
+    body = urlencode({"user_id": "U123", "text": "oat milk"}).encode()
+    timestamp, signature = _signed(body)
+
+    response = TestClient(app).post(
+        "/slack/commands",
+        content=body,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Slack-Request-Timestamp": timestamp,
+            "X-Slack-Signature": signature,
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "answer provider unavailable"}
 
 
 def test_slack_interaction_persists_signed_feedback(tmp_path: Path) -> None:
