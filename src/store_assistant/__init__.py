@@ -1,0 +1,2 @@
+"""Store operations GenAI assistant."""
+
