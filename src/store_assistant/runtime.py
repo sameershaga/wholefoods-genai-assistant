@@ -14,6 +14,7 @@ from store_assistant.answering import AnswerService
 from store_assistant.api import create_app
 from store_assistant.auth import MockAuthProvider, UserContext
 from store_assistant.feedback import SQLiteFeedbackRepository
+from store_assistant.ingestion.contracts import ingest_supplier_contract
 from store_assistant.ingestion.delivery_logs import ingest_delivery_logs
 from store_assistant.ingestion.recipes import ingest_recipe_html
 from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
@@ -33,6 +34,7 @@ class LocalSettings:
 
     delivery_logs_path: Path = Path("data/delivery_logs.json")
     recipe_path: Path = Path("data/recipes/oat_milk_overnight_oats.html")
+    supplier_contract_path: Path | None = None
     state_directory: Path = Path(".local")
     embedding_dimensions: int = 384
     slack_signing_secret: str | None = None
@@ -68,6 +70,9 @@ class LocalSettings:
                     "data/recipes/oat_milk_overnight_oats.html",
                 )
             ),
+            supplier_contract_path=_optional_path(
+                values.get("STORE_ASSISTANT_SUPPLIER_CONTRACT_PATH", "")
+            ),
             state_directory=Path(values.get("STORE_ASSISTANT_STATE_DIRECTORY", ".local")),
             embedding_dimensions=dimensions,
             slack_signing_secret=signing_secret,
@@ -82,6 +87,8 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
         *ingest_delivery_logs(config.delivery_logs_path),
         *ingest_recipe_html(config.recipe_path),
     ]
+    if config.supplier_contract_path is not None:
+        chunks.extend(ingest_supplier_contract(config.supplier_contract_path))
     embeddings = LocalHashEmbeddingProvider(config.embedding_dimensions)
     vector_store = InMemoryVectorStore(embeddings.dimension)
     vectors = embeddings.embed([chunk.text for chunk in chunks])
@@ -136,6 +143,11 @@ def _load_slack_user_tokens(raw_value: str) -> dict[str, str] | None:
     ):
         raise ValueError("STORE_ASSISTANT_SLACK_USER_TOKENS must map Slack user IDs to tokens")
     return {user_id.strip(): token.strip() for user_id, token in value.items()}
+
+
+def _optional_path(raw_value: str) -> Path | None:
+    value = raw_value.strip()
+    return Path(value) if value else None
 
 
 app = create_local_app()
