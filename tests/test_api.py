@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -9,15 +10,17 @@ from store_assistant.api import create_app
 from store_assistant.auth import MockAuthProvider, UserContext
 from store_assistant.feedback import SQLiteFeedbackRepository
 from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
-from store_assistant.providers.llm import LocalExtractiveLLM
-from store_assistant.providers.reranking import LocalLexicalReranker
+from store_assistant.providers.llm import GeneratedAnswer, LLMError, LLMProvider, LocalExtractiveLLM
+from store_assistant.providers.reranking import LocalLexicalReranker, RerankResult
 from store_assistant.providers.vector_store import InMemoryVectorStore, VectorRecord
 from store_assistant.request_logging import JSONLRequestLogRepository
 from store_assistant.retrieval import RetrievalService
 from store_assistant.services import AssistantService, AuthenticatedRetrievalService
 
 
-def _client(tmp_path: Path) -> tuple[TestClient, SQLiteFeedbackRepository]:
+def _client(
+    tmp_path: Path, llm: LLMProvider | None = None
+) -> tuple[TestClient, SQLiteFeedbackRepository]:
     embeddings = LocalHashEmbeddingProvider(dimensions=32)
     vector_store = InMemoryVectorStore(dimension=32)
     texts = (
@@ -43,7 +46,7 @@ def _client(tmp_path: Path) -> tuple[TestClient, SQLiteFeedbackRepository]:
     )
     assistant = AssistantService(
         retrieval,
-        AnswerService(LocalExtractiveLLM()),
+        AnswerService(llm or LocalExtractiveLLM()),
         JSONLRequestLogRepository(tmp_path / "requests.jsonl"),
         request_id_factory=lambda: "request-1",
     )
@@ -123,5 +126,23 @@ def test_malformed_payload_returns_validation_error(tmp_path: Path) -> None:
             json={"query": "", "unexpected": True},
         )
         assert response.status_code == 422
+    finally:
+        feedback.close()
+
+
+def test_query_reports_llm_provider_failure_as_bad_gateway(tmp_path: Path) -> None:
+    class FailingLLM:
+        def generate(self, query: str, context: Sequence[RerankResult]) -> GeneratedAnswer:
+            raise LLMError("answer provider unavailable")
+
+    client, feedback = _client(tmp_path, FailingLLM())
+    try:
+        response = client.post(
+            "/v1/query",
+            headers={"Authorization": "Bearer brooklyn-token"},
+            json={"query": "Do we have oat milk?"},
+        )
+        assert response.status_code == 502
+        assert response.json() == {"detail": "answer provider unavailable"}
     finally:
         feedback.close()

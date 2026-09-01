@@ -11,6 +11,7 @@ from store_assistant.feedback import (
     FeedbackRating,
     FeedbackRepository,
 )
+from store_assistant.providers.llm import LLMError
 from store_assistant.retrieval import RetrievalError
 from store_assistant.services import AssistantService
 from store_assistant.slack import SlackCommandHandler, create_slack_router
@@ -96,6 +97,8 @@ def create_app(
             raise HTTPException(status_code=401, detail=str(exc)) from exc
         except RetrievalError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except LLMError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
         return QueryResponse(
             request_id=result.request_id,
             answer=result.answer.text,
