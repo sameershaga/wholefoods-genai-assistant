@@ -1,0 +1,32 @@
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+
+# Runtime databases and local artifacts
+*.sqlite3
+*.sqlite
+*.jsonl
+.local/
+
+# Test and tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets and environment files (keep example only)
+.env
+.env.*
+!.env.example
+
+# IDE and editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# uv lockfile - not committed for application (pyproject.toml is source of truth)

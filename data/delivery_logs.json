@@ -1,0 +1,35 @@
+[
+  {
+    "delivery_id": "DLV-BK-1001",
+    "delivered_at": "2026-08-31T07:30:00-04:00",
+    "store_id": "brooklyn-01",
+    "sku": "OAT-001",
+    "product_name": "Unsweetened Oat Milk",
+    "product_category": "Dairy Alternatives",
+    "supplier": "Hudson Valley Co-op",
+    "quantity": 12,
+    "unit": "cartons"
+  },
+  {
+    "delivery_id": "DLV-MN-1001",
+    "delivered_at": "2026-08-31T08:15:00-04:00",
+    "store_id": "manhattan-01",
+    "sku": "OAT-001",
+    "product_name": "Unsweetened Oat Milk",
+    "product_category": "Dairy Alternatives",
+    "supplier": "Hudson Valley Co-op",
+    "quantity": 3,
+    "unit": "cartons"
+  },
+  {
+    "delivery_id": "DLV-QN-1001",
+    "delivered_at": "2026-08-31T09:00:00-04:00",
+    "store_id": "queens-01",
+    "sku": "OAT-001",
+    "product_name": "Unsweetened Oat Milk",
+    "product_category": "Dairy Alternatives",
+    "supplier": "Hudson Valley Co-op",
+    "quantity": 8,
+    "unit": "cartons"
+  }
+]

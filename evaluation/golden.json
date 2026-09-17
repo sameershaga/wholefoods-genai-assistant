@@ -1,0 +1,56 @@
+[
+  {
+    "case_id": "brooklyn-oat-milk-isolation",
+    "query": "Do we have oat milk?",
+    "store_id": "brooklyn-01",
+    "filters": {"sku": "OAT001"},
+    "expected_document_ids": ["delivery:DLV-BK-1001:0"],
+    "answer_must_contain": ["12 cartons"],
+    "answer_must_not_contain": ["3 cartons", "8 cartons"]
+  },
+  {
+    "case_id": "manhattan-oat-milk-isolation",
+    "query": "How many cartons of oat milk are available?",
+    "store_id": "manhattan-01",
+    "filters": {"sku": "OAT001"},
+    "expected_document_ids": ["delivery:DLV-MN-1001:0"],
+    "answer_must_contain": ["3 cartons"],
+    "answer_must_not_contain": ["12 cartons", "8 cartons"]
+  },
+  {
+    "case_id": "queens-oat-milk-isolation",
+    "query": "Do we have unsweetened oat milk?",
+    "store_id": "queens-01",
+    "filters": {"sku": "OAT001"},
+    "expected_document_ids": ["delivery:DLV-QN-1001:0"],
+    "answer_must_contain": ["8 cartons"],
+    "answer_must_not_contain": ["12 cartons", "3 cartons"]
+  },
+  {
+    "case_id": "unknown-sku-empty-retrieval",
+    "query": "Do we carry gluten-free sourdough?",
+    "store_id": "brooklyn-01",
+    "filters": {"sku": "GF-BREAD-001"},
+    "expected_document_ids": [],
+    "answer_must_contain": ["couldn't find", "relevant information"],
+    "answer_must_not_contain": ["cartons", "OAT"]
+  },
+  {
+    "case_id": "cross-store-isolation-brooklyn-cannot-see-manhattan",
+    "query": "What quantity arrived in delivery DLV-MN-1001?",
+    "store_id": "brooklyn-01",
+    "filters": {"delivery_id": "DLV-MN-1001"},
+    "expected_document_ids": [],
+    "answer_must_contain": ["couldn't find", "relevant information"],
+    "answer_must_not_contain": ["3 cartons", "DLV-MN-1001"]
+  },
+  {
+    "case_id": "recipe-query-brooklyn",
+    "query": "How do I prepare overnight oats?",
+    "store_id": "brooklyn-01",
+    "filters": {},
+    "expected_document_ids": ["recipe:REC-OATS-001:0"],
+    "answer_must_contain": ["oat"],
+    "answer_must_not_contain": []
+  }
+]
