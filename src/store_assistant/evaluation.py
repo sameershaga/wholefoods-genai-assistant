@@ -39,10 +39,17 @@ class GoldenCase:
 
 @dataclass(frozen=True, slots=True)
 class EvaluationMetrics:
-    """Aggregate quality, isolation, performance, and cost measurements."""
+    """Aggregate quality, isolation, performance, and cost measurements.
+
+    ``retrieval_hit_rate`` is calculated only across positive cases (cases with
+    expected document IDs). ``abstention_success_rate`` is calculated only
+    across expected-abstention cases and requires retrieval to return nothing.
+    A rate is 1.0 when its dataset contains no applicable cases.
+    """
 
     case_count: int
     retrieval_hit_rate: float
+    abstention_success_rate: float
     correct_store_retrieval_rate: float
     answer_correctness: float
     citation_correctness: float
@@ -114,7 +121,9 @@ def evaluate(
     retrieval = RetrievalService(embeddings, vector_store, LocalLexicalReranker())
     answering = AnswerService(LocalExtractiveLLM())
 
-    hits = correct_store = correct_answers = correct_citations = 0
+    hits = abstentions = correct_store = correct_answers = correct_citations = 0
+    positive_count = sum(bool(case.expected_document_ids) for case in cases)
+    abstention_count = len(cases) - positive_count
     total_latency_ms = total_cost = 0.0
     for case in cases:
         filters = dict(case.filters)
@@ -129,7 +138,7 @@ def evaluate(
         if expected_ids:
             hits += bool(document_ids & expected_ids)
         else:
-            hits += not document_ids
+            abstentions += not document_ids
         store_is_correct = (
             not context
             if not expected_ids
@@ -156,7 +165,8 @@ def evaluate(
     count = len(cases)
     return EvaluationMetrics(
         case_count=count,
-        retrieval_hit_rate=hits / count,
+        retrieval_hit_rate=hits / positive_count if positive_count else 1.0,
+        abstention_success_rate=(abstentions / abstention_count if abstention_count else 1.0),
         correct_store_retrieval_rate=correct_store / count,
         answer_correctness=correct_answers / count,
         citation_correctness=correct_citations / count,

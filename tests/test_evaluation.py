@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ def test_bundled_golden_evaluation_meets_local_quality_targets() -> None:
 
     assert metrics.case_count == 5
     assert metrics.retrieval_hit_rate == 1.0
+    assert metrics.abstention_success_rate == 1.0
     assert metrics.correct_store_retrieval_rate == 1.0
     assert metrics.answer_correctness == 1.0
     assert metrics.citation_correctness == 1.0
@@ -29,6 +31,33 @@ def test_evaluation_indexes_recipe_source_for_recipe_case() -> None:
     assert metrics.retrieval_hit_rate == 1.0
     assert metrics.answer_correctness == 1.0
     assert metrics.citation_correctness == 1.0
+
+
+def test_positive_retrieval_miss_reduces_only_positive_hit_rate() -> None:
+    cases = load_golden_cases("evaluation/golden.json")
+    positive_case = next(case for case in cases if case.expected_document_ids)
+    missed_case = replace(positive_case, expected_document_ids=("delivery:missing:0",))
+
+    metrics = evaluate([positive_case, missed_case], "data/delivery_logs.json")
+
+    assert metrics.retrieval_hit_rate == 0.5
+    assert metrics.abstention_success_rate == 1.0
+
+
+def test_expected_abstention_has_its_own_metric_and_does_not_lower_hit_rate() -> None:
+    cases = load_golden_cases("evaluation/golden.json")
+    positive_case = next(case for case in cases if case.expected_document_ids)
+    abstention_case = next(case for case in cases if not case.expected_document_ids)
+    leaking_case = replace(
+        positive_case,
+        case_id="unexpected-retrieval",
+        expected_document_ids=(),
+    )
+
+    metrics = evaluate([positive_case, abstention_case, leaking_case], "data/delivery_logs.json")
+
+    assert metrics.retrieval_hit_rate == 1.0
+    assert metrics.abstention_success_rate == 0.5
 
 
 def test_evaluation_exercises_cross_store_isolation_and_empty_retrieval() -> None:
