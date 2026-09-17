@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 from collections.abc import Mapping
@@ -318,7 +319,7 @@ def _create_auth_provider(config: LocalSettings) -> AuthProvider:
             }
         )
     try:
-        import jwt
+        jwt = importlib.import_module("jwt")
     except ImportError as exc:
         raise RuntimeError(
             "Okta authentication requires the optional OIDC dependencies; "
