@@ -68,7 +68,7 @@ def load_golden_cases(path: str | Path) -> list[GoldenCase]:
                 query=_required_string(item, "query"),
                 store_id=normalize_store_id(_required_string(item, "store_id")),
                 filters=_string_mapping(item.get("filters", {})),
-                expected_document_ids=_string_tuple(item, "expected_document_ids"),
+                expected_document_ids=_string_tuple(item, "expected_document_ids", required=False),
                 answer_must_contain=_string_tuple(item, "answer_must_contain"),
                 answer_must_not_contain=_string_tuple(
                     item, "answer_must_not_contain", required=False
@@ -121,9 +121,14 @@ def evaluate(
 
         document_ids = {item.document_id for item in context}
         expected_ids = set(case.expected_document_ids)
-        hits += bool(document_ids & expected_ids)
-        store_is_correct = bool(context) and all(
-            item.metadata.get("store_id") == case.store_id for item in context
+        if expected_ids:
+            hits += bool(document_ids & expected_ids)
+        else:
+            hits += not document_ids
+        store_is_correct = (
+            not context
+            if not expected_ids
+            else bool(context) and all(item.metadata.get("store_id") == case.store_id for item in context)
         )
         correct_store += store_is_correct
         normalized_answer = answer.text.casefold()
@@ -132,7 +137,11 @@ def evaluate(
         ) and all(
             phrase.casefold() not in normalized_answer for phrase in case.answer_must_not_contain
         )
-        correct_citations += bool(set(answer.citations) & expected_ids) and store_is_correct
+        correct_citations += (
+            (not answer.citations and not document_ids)
+            if not expected_ids
+            else bool(set(answer.citations) & expected_ids) and store_is_correct
+        )
         total_cost += (
             answer.prompt_tokens * input_cost_per_million_tokens
             + answer.completion_tokens * output_cost_per_million_tokens

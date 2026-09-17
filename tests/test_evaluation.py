@@ -11,13 +11,23 @@ def test_bundled_golden_evaluation_meets_local_quality_targets() -> None:
 
     metrics = evaluate(cases, "data/delivery_logs.json")
 
-    assert metrics.case_count == 3
+    assert metrics.case_count == 5
     assert metrics.retrieval_hit_rate == 1.0
     assert metrics.correct_store_retrieval_rate == 1.0
     assert metrics.answer_correctness == 1.0
     assert metrics.citation_correctness == 1.0
     assert metrics.average_latency_ms >= 0
     assert metrics.estimated_cost_per_query_usd == 0
+
+
+def test_evaluation_exercises_cross_store_isolation_and_empty_retrieval() -> None:
+    cases = load_golden_cases("evaluation/golden.json")
+
+    isolation_cases = [case for case in cases if not case.expected_document_ids]
+    assert len(isolation_cases) >= 2
+    isolation_queries = {case.case_id for case in isolation_cases}
+    assert "cross-store-isolation-brooklyn-cannot-see-manhattan" in isolation_queries
+    assert "unknown-sku-empty-retrieval" in isolation_queries
 
 
 def test_evaluation_calculates_configured_token_cost() -> None:
