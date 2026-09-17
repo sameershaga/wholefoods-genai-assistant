@@ -49,7 +49,7 @@
     "query": "How do I prepare overnight oats?",
     "store_id": "brooklyn-01",
     "filters": {},
-    "expected_document_ids": ["recipe:oat-milk-overnight-oats:0"],
+    "expected_document_ids": ["recipe:REC-OATS-001:0"],
     "answer_must_contain": ["oat"],
     "answer_must_not_contain": []
   }
