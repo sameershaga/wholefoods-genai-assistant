@@ -12,7 +12,7 @@ def test_bundled_golden_evaluation_meets_local_quality_targets() -> None:
 
     metrics = evaluate(cases, "data/delivery_logs.json")
 
-    assert metrics.case_count == 5
+    assert metrics.case_count == 6
     assert metrics.retrieval_hit_rate == 1.0
     assert metrics.abstention_success_rate == 1.0
     assert metrics.correct_store_retrieval_rate == 1.0
@@ -68,6 +68,31 @@ def test_evaluation_exercises_cross_store_isolation_and_empty_retrieval() -> Non
     isolation_queries = {case.case_id for case in isolation_cases}
     assert "cross-store-isolation-brooklyn-cannot-see-manhattan" in isolation_queries
     assert "unknown-sku-empty-retrieval" in isolation_queries
+
+
+def test_cross_store_case_abstains_from_existing_other_store_document() -> None:
+    cases = load_golden_cases("evaluation/golden.json")
+    isolation_case = next(
+        case
+        for case in cases
+        if case.case_id == "cross-store-isolation-brooklyn-cannot-see-manhattan"
+    )
+    manhattan_case = replace(
+        isolation_case,
+        case_id="manhattan-can-see-own-delivery",
+        store_id="MANHATTAN-01",
+        expected_document_ids=("delivery:DLV-MN-1001:0",),
+        answer_must_contain=("3 cartons",),
+        answer_must_not_contain=(),
+    )
+
+    metrics = evaluate([manhattan_case, isolation_case], "data/delivery_logs.json")
+
+    assert metrics.retrieval_hit_rate == 1.0
+    assert metrics.abstention_success_rate == 1.0
+    assert metrics.correct_store_retrieval_rate == 1.0
+    assert metrics.answer_correctness == 1.0
+    assert metrics.citation_correctness == 1.0
 
 
 def test_evaluation_calculates_configured_token_cost() -> None:

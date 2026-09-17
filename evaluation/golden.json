@@ -36,6 +36,15 @@
     "answer_must_not_contain": ["cartons", "OAT"]
   },
   {
+    "case_id": "cross-store-isolation-brooklyn-cannot-see-manhattan",
+    "query": "What quantity arrived in delivery DLV-MN-1001?",
+    "store_id": "brooklyn-01",
+    "filters": {"delivery_id": "DLV-MN-1001"},
+    "expected_document_ids": [],
+    "answer_must_contain": ["couldn't find", "relevant information"],
+    "answer_must_not_contain": ["3 cartons", "DLV-MN-1001"]
+  },
+  {
     "case_id": "recipe-query-brooklyn",
     "query": "How do I prepare overnight oats?",
     "store_id": "brooklyn-01",
