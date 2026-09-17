@@ -20,6 +20,17 @@ def test_bundled_golden_evaluation_meets_local_quality_targets() -> None:
     assert metrics.estimated_cost_per_query_usd == 0
 
 
+def test_evaluation_indexes_recipe_source_for_recipe_case() -> None:
+    cases = load_golden_cases("evaluation/golden.json")
+    recipe_case = next(case for case in cases if case.case_id == "recipe-query-brooklyn")
+
+    metrics = evaluate([recipe_case], "data/delivery_logs.json")
+
+    assert metrics.retrieval_hit_rate == 1.0
+    assert metrics.answer_correctness == 1.0
+    assert metrics.citation_correctness == 1.0
+
+
 def test_evaluation_exercises_cross_store_isolation_and_empty_retrieval() -> None:
     cases = load_golden_cases("evaluation/golden.json")
 

@@ -12,6 +12,7 @@ from typing import Any
 from store_assistant.answering import AnswerService
 from store_assistant.ingestion.delivery_logs import ingest_delivery_logs
 from store_assistant.ingestion.normalization import normalize_store_id
+from store_assistant.ingestion.recipes import ingest_recipe_html
 from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
 from store_assistant.providers.llm import LocalExtractiveLLM
 from store_assistant.providers.reranking import LocalLexicalReranker
@@ -86,6 +87,7 @@ def evaluate(
     cases: list[GoldenCase],
     delivery_logs_path: str | Path,
     *,
+    recipe_path: str | Path = "data/recipes/oat_milk_overnight_oats.html",
     embedding_dimensions: int = 384,
     input_cost_per_million_tokens: float = 0.0,
     output_cost_per_million_tokens: float = 0.0,
@@ -96,7 +98,10 @@ def evaluate(
     if input_cost_per_million_tokens < 0 or output_cost_per_million_tokens < 0:
         raise EvaluationError("token prices must not be negative")
 
-    chunks = ingest_delivery_logs(delivery_logs_path)
+    chunks = [
+        *ingest_delivery_logs(delivery_logs_path),
+        *ingest_recipe_html(recipe_path),
+    ]
     embeddings = LocalHashEmbeddingProvider(embedding_dimensions)
     vector_store = InMemoryVectorStore(embeddings.dimension)
     vectors = embeddings.embed([chunk.text for chunk in chunks])
@@ -128,7 +133,8 @@ def evaluate(
         store_is_correct = (
             not context
             if not expected_ids
-            else bool(context) and all(item.metadata.get("store_id") == case.store_id for item in context)
+            else bool(context)
+            and all(item.metadata.get("store_id") == case.store_id for item in context)
         )
         correct_store += store_is_correct
         normalized_answer = answer.text.casefold()
@@ -188,8 +194,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", default="evaluation/golden.json")
     parser.add_argument("--delivery-logs", default="data/delivery_logs.json")
+    parser.add_argument("--recipe", default="data/recipes/oat_milk_overnight_oats.html")
     args = parser.parse_args()
-    metrics = evaluate(load_golden_cases(args.dataset), args.delivery_logs)
+    metrics = evaluate(load_golden_cases(args.dataset), args.delivery_logs, recipe_path=args.recipe)
     print(json.dumps(asdict(metrics), indent=2, sort_keys=True))
 
 
