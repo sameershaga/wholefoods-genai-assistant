@@ -17,6 +17,7 @@ from store_assistant.providers.embeddings import LocalHashEmbeddingProvider
 from store_assistant.providers.llm import LocalExtractiveLLM
 from store_assistant.providers.reranking import LocalLexicalReranker
 from store_assistant.providers.vector_store import InMemoryVectorStore, VectorRecord
+from store_assistant.query_routing import infer_source_type
 from store_assistant.retrieval import RetrievalService
 
 
@@ -127,6 +128,10 @@ def evaluate(
     total_latency_ms = total_cost = 0.0
     for case in cases:
         filters = dict(case.filters)
+        if "source_type" not in filters:
+            inferred_source = infer_source_type(case.query)
+            if inferred_source is not None:
+                filters["source_type"] = inferred_source
         filters["store_id"] = case.store_id
         started_at = perf_counter()
         context = retrieval.retrieve(case.query, filters=filters)

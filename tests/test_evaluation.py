@@ -33,6 +33,17 @@ def test_evaluation_indexes_recipe_source_for_recipe_case() -> None:
     assert metrics.citation_correctness == 1.0
 
 
+def test_evaluation_uses_production_source_routing_for_mixed_corpus() -> None:
+    cases = load_golden_cases("evaluation/golden.json")
+    inventory_case = next(case for case in cases if case.case_id == "brooklyn-oat-milk-isolation")
+
+    metrics = evaluate([inventory_case], "data/delivery_logs.json")
+
+    assert metrics.retrieval_hit_rate == 1.0
+    assert metrics.answer_correctness == 1.0
+    assert metrics.citation_correctness == 1.0
+
+
 def test_positive_retrieval_miss_reduces_only_positive_hit_rate() -> None:
     cases = load_golden_cases("evaluation/golden.json")
     positive_case = next(case for case in cases if case.expected_document_ids)
