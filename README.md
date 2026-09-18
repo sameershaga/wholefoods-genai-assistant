@@ -82,6 +82,55 @@ evaluation/        golden queries and expectations
 tests/             unit and integration tests
 ```
 
+## Three-minute local demo
+
+This path uses only bundled synthetic data and deterministic local providers—no
+AWS, Pinecone, Okta, or Slack credentials are required. After completing the
+[local setup](#local-setup), start the API:
+
+```bash
+uv run uvicorn store_assistant.runtime:app --app-dir src
+```
+
+In another terminal, ask the assistant as the synthetic Brooklyn manager:
+
+```bash
+curl -s http://127.0.0.1:8000/v1/query \
+  -H 'Authorization: Bearer local-brooklyn-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"Do we have oat milk?","filters":{"sku":"OAT001"}}'
+```
+
+The response reports Brooklyn's synthetic inventory, identifies the local model,
+and includes both a deterministic delivery citation and a `request_id`. That one
+request demonstrates the complete flow:
+
+1. FastAPI validates the HTTP request and bearer token.
+2. Mock authentication establishes the caller's trusted Brooklyn store context.
+3. Query routing identifies the relevant source type and SKU filter.
+4. Vector search retrieves candidates with the Brooklyn `store_id` constraint
+   already applied.
+5. The lexical reranker reduces the candidate set to the best evidence.
+6. The local extractive answer provider produces a concise grounded response.
+7. The answer service appends the selected document IDs as citations.
+8. JSONL telemetry is written and the returned request can receive thumbs-style
+   feedback.
+
+Copy the returned `request_id` into this follow-up request:
+
+```bash
+curl -s http://127.0.0.1:8000/v1/feedback \
+  -H 'Authorization: Bearer local-brooklyn-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"request_id":"<request-id>","rating":"up","comment":"Useful"}'
+```
+
+For an isolation check, repeat the query with `local-manhattan-token`: the same
+SKU resolves against Manhattan's synthetic records rather than Brooklyn's. Use
+`Ctrl+C` to stop the API. The optional Slack adapter exercises the same service
+path with signed requests and interactive feedback; it is not needed for this
+offline demo.
+
 ## Local setup
 
 Python 3.12 or newer is required.
