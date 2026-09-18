@@ -20,6 +20,7 @@ body {
 }
 button, select, textarea { font: inherit; }
 button, select { cursor: pointer; }
+button:disabled, select:disabled, textarea:disabled { cursor: not-allowed; opacity: .62; }
 main { min-height: 100vh; }
 
 .siteHeader {
@@ -60,10 +61,20 @@ select:focus, textarea:focus, button:focus-visible { outline: 3px solid rgba(40,
 .askButton { display: flex; justify-content: space-between; padding: 13px 16px; border: 0; border-radius: 8px; color: white; background: var(--green-dark); font-weight: 700; }
 .formNote { margin: 12px 0 0; color: var(--muted); font-size: 11px; }
 .answerPanel { display: flex; flex-direction: column; justify-content: space-between; padding: 34px; background: linear-gradient(135deg, #fff 0%, #f1f7f3 100%); }
-.answerEmpty { max-width: 440px; margin: auto; text-align: center; }
+.answerState { max-width: 440px; margin: auto; text-align: center; }
 .answerIcon { display: grid; place-items: center; width: 48px; height: 48px; margin: 0 auto 16px; border-radius: 50%; color: var(--green); background: var(--mint); font-size: 23px; }
-.answerEmpty h3 { margin: 0 0 8px; font-family: Georgia, serif; font-size: 25px; font-weight: 500; }
-.answerEmpty p { margin: 0; color: var(--muted); }
+.answerState h3 { margin: 0 0 8px; font-family: Georgia, serif; font-size: 25px; font-weight: 500; }
+.answerState p { margin: 0; color: var(--muted); }
+.errorState .answerIcon { color: #8a3327; background: #f6e6e2; }
+.loadingIcon { animation: pulse 1.2s ease-in-out infinite; }
+.answerResult { width: 100%; align-self: flex-start; }
+.answerResult h3 { margin: 22px 0 8px; font-family: Georgia, serif; font-size: 27px; font-weight: 500; }
+.answerResult h4 { margin: 28px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+.answerText { margin: 0; font-size: 17px; white-space: pre-wrap; }
+.resultMeta { display: flex; flex-wrap: wrap; gap: 8px; }
+.resultMeta span, .citations li { padding: 6px 9px; border: 1px solid #c8d8ce; border-radius: 6px; color: var(--green-dark); background: rgba(255,255,255,.7); font-size: 12px; }
+.citations { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.noCitations { color: var(--muted); font-size: 13px; }
 .trustRow { display: flex; justify-content: center; gap: 24px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 
 .section { padding: 100px 0; }
@@ -99,4 +110,5 @@ footer p { margin: 4px 0; }
   .section { padding: 72px 0; }
 }
 
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .loadingIcon { animation: none; } }
+@keyframes pulse { 50% { opacity: .45; transform: scale(.94); } }

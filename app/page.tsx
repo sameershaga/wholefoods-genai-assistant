@@ -1,3 +1,5 @@
+import { AssistantConsole } from "./assistant-console";
+
 const pipeline = [
   "Query",
   "Identity / store scope",
@@ -43,45 +45,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="console" aria-labelledby="console-title">
-        <div className="consoleIntro">
-          <div>
-            <p className="eyebrow">Assistant console</p>
-            <h2 id="console-title">Ask within a synthetic store scope</h2>
-          </div>
-          <span className="isolationBadge">Store isolation enabled</span>
-        </div>
-
-        <div className="queryGrid">
-          <form className="queryPanel">
-            <label htmlFor="store">Synthetic store</label>
-            <select id="store" name="store" defaultValue="BROOKLYN-01">
-              <option value="BROOKLYN-01">Brooklyn 01</option>
-              <option value="MANHATTAN-01">Manhattan 01</option>
-              <option value="QUEENS-01">Queens 01</option>
-            </select>
-            <label htmlFor="question">Operational question</label>
-            <textarea id="question" name="question" defaultValue="Do we have oat milk?" />
-            <div className="suggestions" aria-label="Suggested questions">
-              <button type="button">Do we have oat milk?</button>
-              <button type="button">What was delivered?</button>
-            </div>
-            <button className="askButton" type="button">Ask the assistant <span>→</span></button>
-            <p className="formNote">Live API interaction will be connected in the next implementation increment.</p>
-          </form>
-
-          <div className="answerPanel" aria-label="Answer preview">
-            <div className="answerEmpty">
-              <span className="answerIcon" aria-hidden="true">✦</span>
-              <h3>Your grounded answer will appear here</h3>
-              <p>The response will include its selected store, model, and source document IDs.</p>
-            </div>
-            <div className="trustRow">
-              <span>Scoped identity</span><span>Retrieved evidence</span><span>Citations</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <AssistantConsole />
 
       <section className="section" aria-labelledby="pipeline-title">
         <p className="eyebrow">How it works</p>
