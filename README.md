@@ -280,7 +280,20 @@ indexing disabled. Local feature-hash embeddings, cosine search, lexical
 reranking, and extractive answers provide deterministic offline substitutes for
 the managed provider implementations.
 
-## Testing and evaluation
+## Engineering quality and evaluation
+
+- **Automated quality gates:** pytest, Ruff linting and formatting, strict mypy,
+  and the golden-set evaluation run in
+  [GitHub Actions](.github/workflows/ci.yml) on every push and pull request.
+- **Layered verification:** unit and integration tests cover ingestion,
+  normalization, chunking, provider boundaries, store/SKU filtering, retrieval,
+  reranking, citations, authentication propagation, cross-store isolation,
+  feedback, API errors, Slack signatures, and evaluation.
+- **Reproducible local tooling:** [`uv.lock`](uv.lock) pins the complete dependency
+  graph used by the documented `uv sync --extra dev` workflow.
+- **Deployable artifact:** the [Dockerfile](Dockerfile) builds a non-root,
+  health-checked Python 3.12 runtime, with Docker Compose available for local
+  persistence and startup.
 
 ```bash
 uv run pytest
@@ -289,13 +302,6 @@ uv run ruff format --check .
 uv run mypy src/store_assistant
 uv run evaluate-store-assistant
 ```
-
-The GitHub Actions CI workflow runs these quality gates and the golden evaluation
-on every push and pull request using Python 3.12.
-
-Tests cover ingestion, normalization, chunking, store/SKU filtering, retrieval,
-reranking, citations, auth propagation, cross-store isolation, feedback, API
-errors, Slack signatures, and evaluation.
 
 The six bundled synthetic golden cases exercise three store-specific oat-milk
 answers, an unknown-SKU abstention, a cross-store access abstention, and a recipe
