@@ -262,13 +262,42 @@ The Python 3.12 image runs as non-root and health-checks `GET /health`.
 
 ## Security considerations
 
-- Trust identity-derived store context, never store IDs from request text.
-- Verify Slack signatures on the raw body and enforce replay protection.
-- A real Okta adapter must validate signature, issuer, audience, expiry, and
-  store claims; mock tokens are development-only.
-- Filter vectors before reranking/generation and authorize cited source access.
-- Use managed secrets, encryption, telemetry redaction/retention, rate limits,
-  dependency scanning, least-privilege IAM, and network controls in production.
+This repository demonstrates security-conscious boundaries, but it is a reference
+application—not a production-certified or fully hardened system.
+
+### Implemented in this reference application
+
+- **Identity-derived store isolation:** the authentication provider supplies a
+  normalized `store_id`. The service rejects a conflicting caller-provided store
+  filter and injects the trusted scope into vector search before reranking or
+  generation.
+- **Authentication boundary:** local mode uses explicit mock tokens; the hosted
+  Okta-compatible adapter verifies RS256 access tokens against issuer JWKS and
+  validates issuer, audience, expiry, and configured identity/store claims.
+- **Slack request trust:** slash commands and interactions use constant-time v0
+  HMAC verification over the raw body, reject timestamps outside a five-minute
+  window, and require an authorized Slack-user-to-access-token mapping.
+- **Input validation and limits:** Pydantic forbids unexpected HTTP fields and
+  limits query and feedback-comment text to 2,000 characters. Slack additionally
+  limits query text to 2,000 characters and request bodies to 16 KiB.
+- **Controlled failure responses:** invalid authentication, retrieval input, and
+  feedback return client errors; answer-provider failures are translated to
+  `502` responses instead of unhandled transport errors.
+- **Configuration and persistence boundaries:** provider settings are validated
+  at startup, credentials are supplied through environment/SDK configuration,
+  feedback is attributed to an authenticated user in SQLite, and append-only
+  JSONL telemetry captures request context, selected document IDs and scores,
+  model/token/cost fields, latency, and the final answer.
+
+### Required for a real production deployment
+
+Use a managed secret store and key rotation; TLS and encryption at rest; log
+redaction, access controls, retention, and audit policies; rate limiting and
+abuse protection; least-privilege IAM and network isolation; dependency and
+container scanning; and provider timeouts, retries, circuit breakers, and
+monitoring. Replace development tokens and local persistence, authorize access
+to cited source documents, test tenant isolation end to end, and complete a
+formal threat model and privacy review for the actual deployment environment.
 
 ## Production deployment approach
 
