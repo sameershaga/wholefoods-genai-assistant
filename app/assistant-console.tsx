@@ -10,6 +10,7 @@ type QueryResult = {
   citations: string[];
   model: string;
 };
+type FeedbackRating = "up" | "down";
 
 const suggestions = ["Do we have oat milk?", "What was delivered?"];
 async function errorMessage(response: Response): Promise<string> {
@@ -30,6 +31,10 @@ export function AssistantConsole() {
   const [error, setError] = useState("");
   const [loadingStores, setLoadingStores] = useState(true);
   const [asking, setAsking] = useState(false);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [feedbackRating, setFeedbackRating] = useState<FeedbackRating | null>(null);
+  const [feedbackError, setFeedbackError] = useState("");
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -57,10 +62,13 @@ export function AssistantConsole() {
   async function ask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const query = question.trim();
-    if (!query || !storeId || asking) return;
+    if (!query || !storeId || asking || submittingFeedback) return;
     setAsking(true);
     setError("");
     setResult(null);
+    setFeedbackComment("");
+    setFeedbackRating(null);
+    setFeedbackError("");
     try {
       const response = await fetch("/v1/demo/query", {
         method: "POST",
@@ -73,6 +81,30 @@ export function AssistantConsole() {
       setError(reason instanceof Error ? reason.message : "Unable to reach the assistant.");
     } finally {
       setAsking(false);
+    }
+  }
+
+  async function submitFeedback(rating: FeedbackRating) {
+    if (!result || submittingFeedback) return;
+    setSubmittingFeedback(true);
+    setFeedbackError("");
+    try {
+      const response = await fetch("/v1/demo/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request_id: result.request_id,
+          store_id: result.store_id,
+          rating,
+          comment: feedbackComment.trim() || null,
+        }),
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      setFeedbackRating(rating);
+    } catch (reason) {
+      setFeedbackError(reason instanceof Error ? reason.message : "Unable to save feedback.");
+    } finally {
+      setSubmittingFeedback(false);
     }
   }
 
@@ -95,7 +127,7 @@ export function AssistantConsole() {
           <div className="suggestions" aria-label="Suggested questions">
             {suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => setQuestion(suggestion)} disabled={asking}>{suggestion}</button>)}
           </div>
-          <button className="askButton" type="submit" disabled={asking || loadingStores || !storeId || !question.trim()}>
+          <button className="askButton" type="submit" disabled={asking || submittingFeedback || loadingStores || !storeId || !question.trim()}>
             <span>{asking ? "Retrieving store-scoped evidence…" : "Ask the assistant"}</span><span aria-hidden="true">→</span>
           </button>
           <p className="formNote">The API resolves this selection to a server-side demo identity; the browser cannot supply arbitrary identity metadata.</p>
@@ -110,6 +142,20 @@ export function AssistantConsole() {
             <h3>Grounded answer</h3><p className="answerText">{result.answer}</p>
             <h4>Sources</h4>
             {result.citations.length > 0 ? <ul className="citations">{result.citations.map((citation) => <li key={citation}>{citation}</li>)}</ul> : <p className="noCitations">No source IDs were returned.</p>}
+            <div className="feedbackPanel">
+              <h4>Was this answer useful?</h4>
+              <div className="feedbackActions" role="group" aria-label="Rate this answer">
+                <button type="button" onClick={() => void submitFeedback("up")} disabled={submittingFeedback} aria-pressed={feedbackRating === "up"}>👍 <span>Helpful</span></button>
+                <button type="button" onClick={() => void submitFeedback("down")} disabled={submittingFeedback} aria-pressed={feedbackRating === "down"}>👎 <span>Not helpful</span></button>
+              </div>
+              <label htmlFor="feedback-comment">Optional feedback</label>
+              <textarea id="feedback-comment" className="feedbackComment" value={feedbackComment} onChange={(event) => setFeedbackComment(event.target.value)} maxLength={2000} placeholder="What worked, or what could improve?" disabled={submittingFeedback} />
+              <div className="feedbackStatus" aria-live="polite">
+                {submittingFeedback && <span>Saving feedback…</span>}
+                {!submittingFeedback && feedbackRating && <span className="feedbackSuccess">Feedback saved. Thank you.</span>}
+                {!submittingFeedback && feedbackError && <span className="feedbackFailure" role="alert">{feedbackError}</span>}
+              </div>
+            </div>
           </article>}
           <div className="trustRow"><span>Scoped identity</span><span>Retrieved evidence</span><span>Citations</span></div>
         </div>

@@ -75,6 +75,16 @@ select:focus, textarea:focus, button:focus-visible { outline: 3px solid rgba(40,
 .resultMeta span, .citations li { padding: 6px 9px; border: 1px solid #c8d8ce; border-radius: 6px; color: var(--green-dark); background: rgba(255,255,255,.7); font-size: 12px; }
 .citations { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .noCitations { color: var(--muted); font-size: 13px; }
+.feedbackPanel { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); }
+.feedbackPanel h4 { margin-top: 0; }
+.feedbackActions { display: flex; gap: 8px; margin-bottom: 15px; }
+.feedbackActions button { padding: 8px 11px; border: 1px solid #c8d8ce; border-radius: 7px; color: var(--green-dark); background: rgba(255,255,255,.75); }
+.feedbackActions button[aria-pressed="true"] { color: white; border-color: var(--green-dark); background: var(--green-dark); }
+.feedbackPanel label { display: block; }
+.feedbackComment { min-height: 68px; font-size: 13px; }
+.feedbackStatus { min-height: 22px; margin-top: 7px; color: var(--muted); font-size: 12px; }
+.feedbackSuccess { color: var(--green); }
+.feedbackFailure { color: #8a3327; }
 .trustRow { display: flex; justify-content: center; gap: 24px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 
 .section { padding: 100px 0; }
