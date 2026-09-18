@@ -16,6 +16,12 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Frontend dependencies and build output
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
 # Secrets and environment files (keep example only)
 .env
 .env.*
