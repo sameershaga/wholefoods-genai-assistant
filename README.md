@@ -1,18 +1,62 @@
-# Whole Foods Store Operations Assistant
+# Whole Foods Store Operations GenAI Assistant
 
-A production-style reference implementation of a Slack-based GenAI assistant for
-store managers querying inventory, deliveries, supplier contracts, and recipes.
-It uses synthetic data only and does **not** represent Whole Foods Market
-production systems, data, or architecture. The default application runs fully
-offline without accounts or paid services.
+> **Synthetic enterprise GenAI/RAG reference implementation.** This independent
+> portfolio project uses synthetic data only. It is not a Whole Foods Market
+> production system and does not use or describe proprietary infrastructure,
+> internal data, confidential architecture, or measured business results.
+
+A locally runnable assistant that lets a store manager ask natural-language
+questions about inventory deliveries, supplier contracts, and recipes through
+an HTTP API or an optional Slack interface. It demonstrates store-scoped RAG,
+retrieve-then-rerank context selection, cited answers, feedback capture, and
+swappable local or managed-service providers without requiring cloud accounts
+for the default experience.
+
+## Why this project matters
+
+Enterprise RAG is more than connecting a vector database to an LLM. This project
+shows the surrounding engineering needed for a credible assistant: identity-derived
+data boundaries, metadata-filtered retrieval, citation enforcement, signed Slack
+requests, observable provider usage, deterministic evaluation, and an offline path
+that makes the complete workflow easy to review. The implementation emphasizes
+testable interfaces and explicit failure handling rather than unsupported claims
+about production performance.
 
 ## Architecture
 
-```text
-Slack / FastAPI -> authentication (trusted store context)
-  -> query embedding -> filtered vector search (25 candidates)
-  -> reranking -> strongest context -> grounded answer with citations
-  -> JSONL request telemetry / SQLite feedback
+```mermaid
+flowchart TB
+    subgraph Query[Query and answer path]
+        Clients[Slack slash command or HTTP API] --> API[FastAPI]
+        API --> Auth[Authentication and trusted store context]
+        Auth --> Router[Query routing]
+        Router --> EmbedQ[Query embedding]
+        EmbedQ --> Retrieval[Store-scoped metadata retrieval]
+        Retrieval --> Vectors[(Vector store)]
+        Vectors --> Rerank[Reranking]
+        Rerank --> LLM[Grounded answer provider]
+        LLM --> Answer[Answer and citations]
+        Answer --> Telemetry[JSONL request logging]
+        Answer --> Feedback[SQLite thumbs feedback]
+    end
+
+    subgraph Ingestion[Ingestion and indexing path]
+        Sources[Delivery JSON, supplier PDF, recipe HTML] --> Normalize[Normalization]
+        Normalize --> Chunk[Source-aware chunking]
+        Chunk --> EmbedD[Document embeddings]
+        EmbedD --> Index[Vector indexing with metadata]
+        Index --> Vectors
+    end
+
+    subgraph Providers[Environment-selectable provider implementations]
+        Local[Local offline embeddings, vector search, reranker, and extractive answer]
+        Managed[Amazon Bedrock and Titan, Pinecone, Okta-compatible OIDC]
+    end
+
+    Providers -. implement provider boundaries .-> Auth
+    Providers -. implement provider boundaries .-> EmbedQ
+    Providers -. implement provider boundaries .-> Vectors
+    Providers -. implement provider boundaries .-> LLM
 ```
 
 Store isolation is enforced before vector search: the authenticated user's
