@@ -295,10 +295,26 @@ on every push and pull request using Python 3.12.
 
 Tests cover ingestion, normalization, chunking, store/SKU filtering, retrieval,
 reranking, citations, auth propagation, cross-store isolation, feedback, API
-errors, Slack signatures, and evaluation. The golden dataset overlaps oat milk
-across all three stores and reports retrieval hit rate, correct-store rate,
-answer and citation correctness, latency, and estimated cost/query. Offline
-token cost is zero; `evaluate` accepts hosted-provider token prices.
+errors, Slack signatures, and evaluation.
+
+The six bundled synthetic golden cases exercise three store-specific oat-milk
+answers, an unknown-SKU abstention, a cross-store access abstention, and a recipe
+answer. The evaluation runs those cases through the deterministic local retrieval
+and answering pipeline and reports:
+
+| Metric | What it checks |
+| --- | --- |
+| `retrieval_hit_rate` | Positive cases retrieve at least one expected document. |
+| `correct_store_retrieval_rate` | Retrieved context is empty when expected or belongs only to the requested store. |
+| `abstention_success_rate` | Expected-abstention cases return no retrieved context. |
+| `answer_correctness` | Answers contain required phrases and omit forbidden phrases defined by each case. |
+| `citation_correctness` | Positive answers cite expected evidence from the correct store; abstentions cite nothing. |
+
+The report also includes average local latency and estimated cost per query.
+Offline token cost is zero; the evaluation API accepts token prices for hosted
+answer providers. Perfect scores on this tiny, deterministic synthetic golden
+set are regression signals only—not evidence of real-world model accuracy,
+generalization, latency, or production performance.
 
 ## Docker
 
