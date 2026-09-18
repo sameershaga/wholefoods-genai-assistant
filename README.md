@@ -380,6 +380,16 @@ validated environment configuration. Run ingestion as an idempotent background
 job, use managed persistence and observability, and add timeouts, retries,
 circuit breakers, readiness checks, autoscaling, and cost monitoring.
 
+## Portfolio resources
+
+Use these companion guides to explore, present, and discuss the project:
+
+- [Interview guide](docs/INTERVIEW_GUIDE.md) - 30-second and 2-minute explanations, architecture walkthrough, technical Q&A, and production considerations.
+- [Design decisions](docs/DESIGN_DECISIONS.md) - architectural choices, tradeoffs, and production evolution.
+- [Three-minute demo](docs/DEMO.md) - a practical offline walkthrough for interviews and recruiter demos.
+- [Portfolio summary](docs/PORTFOLIO_SUMMARY.md) - recruiter-facing description, resume bullets, technologies, and engineering concepts.
+- [GitHub setup](docs/GITHUB_SETUP.md) - recommended repository description, topics, and presentation settings.
+
 ## Limitations
 
 - Hosted provider clients depend on their optional SDK extras and valid cloud
