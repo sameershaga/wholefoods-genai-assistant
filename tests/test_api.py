@@ -19,7 +19,7 @@ from store_assistant.services import AssistantService, AuthenticatedRetrievalSer
 
 
 def _client(
-    tmp_path: Path, llm: LLMProvider | None = None
+    tmp_path: Path, llm: LLMProvider | None = None, *, enable_demo: bool = False
 ) -> tuple[TestClient, SQLiteFeedbackRepository]:
     embeddings = LocalHashEmbeddingProvider(dimensions=32)
     vector_store = InMemoryVectorStore(dimension=32)
@@ -51,7 +51,9 @@ def _client(
         request_id_factory=lambda: "request-1",
     )
     feedback = SQLiteFeedbackRepository(tmp_path / "feedback.sqlite3")
-    return TestClient(create_app(assistant, auth, feedback)), feedback
+    demo_tokens = {"BROOKLYN": "brooklyn-token"} if enable_demo else None
+    app = create_app(assistant, auth, feedback, demo_store_tokens=demo_tokens)
+    return TestClient(app), feedback
 
 
 def test_health_is_public(tmp_path: Path) -> None:
@@ -145,5 +147,47 @@ def test_query_reports_llm_provider_failure_as_bad_gateway(tmp_path: Path) -> No
         )
         assert response.status_code == 502
         assert response.json() == {"detail": "answer provider unavailable"}
+    finally:
+        feedback.close()
+
+
+def test_demo_adapter_lists_allowlisted_stores_and_queries_with_trusted_identity(
+    tmp_path: Path,
+) -> None:
+    client, feedback = _client(tmp_path, enable_demo=True)
+    try:
+        stores = client.get("/v1/demo/stores")
+        assert stores.status_code == 200
+        assert stores.json() == [{"store_id": "BROOKLYN", "label": "Brooklyn"}]
+
+        response = client.post(
+            "/v1/demo/query",
+            json={"store_id": "BROOKLYN", "query": "Do we have oat milk?"},
+        )
+        assert response.status_code == 200
+        assert response.json()["store_id"] == "BROOKLYN"
+        assert "12 cartons" in response.json()["answer"]
+    finally:
+        feedback.close()
+
+
+def test_demo_adapter_rejects_stores_outside_server_allowlist(tmp_path: Path) -> None:
+    client, feedback = _client(tmp_path, enable_demo=True)
+    try:
+        response = client.post(
+            "/v1/demo/query",
+            json={"store_id": "MANHATTAN", "query": "Do we have oat milk?"},
+        )
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Synthetic demo store not found"}
+    finally:
+        feedback.close()
+
+
+def test_demo_adapter_is_absent_unless_explicitly_enabled(tmp_path: Path) -> None:
+    client, feedback = _client(tmp_path)
+    try:
+        assert client.get("/v1/demo/stores").status_code == 404
+        assert client.post("/v1/demo/query", json={}).status_code == 404
     finally:
         feedback.close()

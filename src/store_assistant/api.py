@@ -1,5 +1,6 @@
 """FastAPI transport adapter for the store assistant application services."""
 
+from collections.abc import Mapping
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
@@ -36,6 +37,19 @@ class QueryResponse(BaseModel):
     model: str
 
 
+class DemoStoreResponse(BaseModel):
+    """Synthetic store option exposed by the explicitly enabled demo adapter."""
+
+    store_id: str
+    label: str
+
+
+class DemoQueryRequest(QueryRequest):
+    """Public-demo query whose store must match a server-side allowlist."""
+
+    store_id: str = Field(min_length=1, max_length=100)
+
+
 class FeedbackRequest(BaseModel):
     """Validated feedback payload."""
 
@@ -59,12 +73,14 @@ def create_app(
     feedback_repository: FeedbackRepository,
     *,
     slack_handler: SlackCommandHandler | None = None,
+    demo_store_tokens: Mapping[str, str] | None = None,
 ) -> FastAPI:
     """Create an HTTP adapter with dependencies supplied by the composition root."""
 
     app = FastAPI(title="Store Operations Assistant", version="0.1.0")
     if slack_handler is not None:
         app.include_router(create_slack_router(slack_handler))
+    demo_tokens = dict(demo_store_tokens or {})
 
     def access_token(authorization: str | None = Header(default=None)) -> str:
         scheme, _, token = (authorization or "").partition(" ")
@@ -92,6 +108,9 @@ def create_app(
 
     @app.post("/v1/query", response_model=QueryResponse)
     def query(payload: QueryRequest, token: Annotated[str, Depends(access_token)]) -> QueryResponse:
+        return run_query(token, payload)
+
+    def run_query(token: str, payload: QueryRequest) -> QueryResponse:
         try:
             result = assistant_service.ask(token, payload.query.strip(), filters=payload.filters)
         except AuthenticationError as exc:
@@ -107,6 +126,22 @@ def create_app(
             citations=list(result.answer.citations),
             model=result.answer.model,
         )
+
+    if demo_tokens:
+
+        @app.get("/v1/demo/stores", response_model=list[DemoStoreResponse])
+        def demo_stores() -> list[DemoStoreResponse]:
+            return [
+                DemoStoreResponse(store_id=store_id, label=_demo_store_label(store_id))
+                for store_id in demo_tokens
+            ]
+
+        @app.post("/v1/demo/query", response_model=QueryResponse)
+        def demo_query(payload: DemoQueryRequest) -> QueryResponse:
+            token = demo_tokens.get(payload.store_id)
+            if token is None:
+                raise HTTPException(status_code=404, detail="Synthetic demo store not found")
+            return run_query(token, payload)
 
     @app.post("/v1/feedback", response_model=FeedbackResponse)
     def feedback(
@@ -125,3 +160,8 @@ def create_app(
         return FeedbackResponse(request_id=saved.request_id, rating=saved.rating)
 
     return app
+
+
+def _demo_store_label(store_id: str) -> str:
+    """Create a human-readable label without adding store facts beyond its identifier."""
+    return " ".join(part.capitalize() for part in store_id.replace("_", "-").split("-"))
