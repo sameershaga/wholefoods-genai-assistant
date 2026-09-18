@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 type DemoStore = { store_id: string; label: string };
 type QueryResult = {
@@ -24,6 +24,7 @@ async function errorMessage(response: Response): Promise<string> {
 }
 
 export function AssistantConsole() {
+  const queryInFlight = useRef(false);
   const [stores, setStores] = useState<DemoStore[]>([]);
   const [storeId, setStoreId] = useState("");
   const [question, setQuestion] = useState(suggestions[0]);
@@ -62,7 +63,8 @@ export function AssistantConsole() {
   async function ask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const query = question.trim();
-    if (!query || !storeId || asking || submittingFeedback) return;
+    if (!query || !storeId || queryInFlight.current || submittingFeedback) return;
+    queryInFlight.current = true;
     setAsking(true);
     setError("");
     setResult(null);
@@ -80,8 +82,18 @@ export function AssistantConsole() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to reach the assistant.");
     } finally {
+      queryInFlight.current = false;
       setAsking(false);
     }
+  }
+
+  function selectStore(nextStoreId: string) {
+    setStoreId(nextStoreId);
+    setResult(null);
+    setError("");
+    setFeedbackComment("");
+    setFeedbackRating(null);
+    setFeedbackError("");
   }
 
   async function submitFeedback(rating: FeedbackRating) {
@@ -117,7 +129,7 @@ export function AssistantConsole() {
       <div className="queryGrid">
         <form className="queryPanel" onSubmit={ask}>
           <label htmlFor="store">Synthetic store</label>
-          <select id="store" value={storeId} onChange={(event) => setStoreId(event.target.value)} disabled={loadingStores || asking || stores.length === 0}>
+          <select id="store" value={storeId} onChange={(event) => selectStore(event.target.value)} disabled={loadingStores || asking || stores.length === 0}>
             {loadingStores && <option value="">Loading stores…</option>}
             {!loadingStores && stores.length === 0 && <option value="">Unavailable</option>}
             {stores.map((store) => <option value={store.store_id} key={store.store_id}>{store.label} ({store.store_id})</option>)}

@@ -1,6 +1,7 @@
 """Integration coverage for the thin Vercel deployment adapter."""
 
 import importlib.util
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -34,3 +35,11 @@ def test_vercel_adapter_serves_store_scoped_demo_end_to_end() -> None:
     assert answer.status_code == 200
     assert answer.json()["store_id"] == "BROOKLYN-01"
     assert answer.json()["citations"]
+
+
+def test_vercel_adapter_exposes_bundled_src_layout() -> None:
+    app = _load_vercel_app()
+    source_root = Path(__file__).parents[1] / "src"
+
+    assert isinstance(app, FastAPI)
+    assert str(source_root) in sys.path

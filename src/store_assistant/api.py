@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from store_assistant.auth import AuthenticationError, AuthProvider, UserContext
 from store_assistant.feedback import (
@@ -25,6 +25,13 @@ class QueryRequest(BaseModel):
 
     query: str = Field(min_length=1, max_length=2_000)
     filters: dict[str, str | int | float | bool] = Field(default_factory=dict)
+
+    @field_validator("query")
+    @classmethod
+    def query_must_contain_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("query must contain non-whitespace text")
+        return value
 
 
 class QueryResponse(BaseModel):
@@ -55,9 +62,16 @@ class FeedbackRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    request_id: str = Field(min_length=1)
+    request_id: str = Field(min_length=1, max_length=200)
     rating: FeedbackRating
     comment: str | None = Field(default=None, max_length=2_000)
+
+    @field_validator("request_id")
+    @classmethod
+    def request_id_must_contain_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("request_id must contain non-whitespace text")
+        return value
 
 
 class DemoFeedbackRequest(FeedbackRequest):

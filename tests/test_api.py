@@ -204,6 +204,54 @@ def test_demo_adapter_rejects_stores_outside_server_allowlist(tmp_path: Path) ->
         feedback.close()
 
 
+def test_demo_adapter_rejects_malformed_query_inputs(tmp_path: Path) -> None:
+    client, feedback = _client(tmp_path, enable_demo=True)
+    try:
+        payloads = [
+            {"store_id": "BROOKLYN", "query": "   "},
+            {"store_id": "BROOKLYN", "query": "x" * 2_001},
+            {"store_id": "BROOKLYN"},
+            {"store_id": "BROOKLYN", "query": "oat milk", "unexpected": True},
+        ]
+        for payload in payloads:
+            assert client.post("/v1/demo/query", json=payload).status_code == 422
+
+        invalid_json = client.post(
+            "/v1/demo/query",
+            content=b"not json",
+            headers={"Content-Type": "application/json"},
+        )
+        assert invalid_json.status_code == 422
+    finally:
+        feedback.close()
+
+
+def test_demo_adapter_rejects_malformed_feedback_inputs(tmp_path: Path) -> None:
+    client, feedback = _client(tmp_path, enable_demo=True)
+    try:
+        payloads = [
+            {"store_id": "BROOKLYN", "request_id": "   ", "rating": "up"},
+            {"store_id": "BROOKLYN", "request_id": "x" * 201, "rating": "up"},
+            {"store_id": "BROOKLYN", "request_id": "request-1", "rating": "sideways"},
+            {
+                "store_id": "BROOKLYN",
+                "request_id": "request-1",
+                "rating": "up",
+                "comment": "x" * 2_001,
+            },
+            {
+                "store_id": "BROOKLYN",
+                "request_id": "request-1",
+                "rating": "up",
+                "unexpected": True,
+            },
+        ]
+        for payload in payloads:
+            assert client.post("/v1/demo/feedback", json=payload).status_code == 422
+    finally:
+        feedback.close()
+
+
 def test_demo_adapter_is_absent_unless_explicitly_enabled(tmp_path: Path) -> None:
     client, feedback = _client(tmp_path)
     try:
