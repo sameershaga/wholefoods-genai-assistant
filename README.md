@@ -188,32 +188,47 @@ The response includes 👍/👎 buttons. Configure Slack's Interactivity request
 as `POST /slack/interactions`; signed button actions are persisted to the local
 feedback repository under the authorized Slack user ID.
 
-## Ingestion pipeline
+## RAG lifecycle
 
-All ingestors emit a common `DocumentChunk`. Delivery JSON is chunked around
-50 tokens, supplier-contract PDF text around 800 tokens, and recipe HTML by
-logical sections and steps. Dates become canonical UTC values; SKUs, store IDs,
-suppliers, and product categories become consistent filter metadata.
-Deterministic IDs support citations, and malformed inputs fail explicitly.
+1. **Ingest and normalize.** Source-specific loaders parse delivery JSON,
+   supplier-contract PDFs, and recipe HTML into a shared `DocumentChunk`
+   model. Dates, SKUs, store IDs, suppliers, and product categories are
+   normalized into consistent metadata; malformed inputs fail explicitly.
+2. **Chunk and embed.** Delivery records are chunked around 50 tokens,
+   contract text around 800 tokens, and recipes by logical sections and steps.
+   Each chunk receives a deterministic citation ID and an embedding.
+3. **Index metadata with vectors.** Chunk text, vectors, citation IDs, and
+   metadata are stored together so authorization and domain filters can be
+   applied during vector search, before content reaches reranking or generation.
+4. **Authenticate and route.** The application establishes the user's trusted
+   store context, optionally infers a source type from the query, embeds the
+   query, and constructs exact filters for `store_id`, `product_category`,
+   `sku`, `supplier`, and `source_type`.
+5. **Retrieve many, then rerank.** Vector search requests up to 25 filtered
+   candidates by default. A reranker combines query relevance with the
+   candidates and keeps at most five, producing a smaller, higher-signal
+   context for the answer provider.
+6. **Generate and cite.** The answer provider receives only the selected
+   context. The answer service, rather than the provider, appends the selected
+   chunks' deterministic IDs as citations to keep sources tied to retrieved
+   evidence.
+7. **Observe and improve.** JSONL telemetry records identity context, document
+   IDs, retrieval and reranking scores, model and token usage, estimated cost,
+   latency, and the final answer. Thumbs feedback is stored in SQLite with
+   per-user authorization checks.
+
+Store isolation is a data-access boundary, not merely a relevance hint. The
+authenticated identity supplies `store_id`; a caller cannot override it with a
+different store filter. Applying that metadata constraint inside vector search
+prevents another store's chunks from becoming reranking or LLM context, even
+when several stores carry the same SKU.
 
 The bundled runtime indexes delivery logs and the synthetic oat-milk recipe.
 Set `STORE_ASSISTANT_SUPPLIER_CONTRACT_PATH` to a synthetic supplier PDF or a
 directory of PDFs to index them at startup; leaving it unset keeps contract
-indexing disabled. Directory files are processed deterministically by name,
-and duplicate contract document IDs are rejected rather than overwritten.
-
-## Retrieval, answers, and observability
-
-The service embeds each query, applies exact filters (`store_id`,
-`product_category`, `sku`, `supplier`, `source_type`) during search,
-requests 25 candidates by default, reranks them, and sends only the strongest
-context to the answer provider. Local feature-hash embeddings, cosine search,
-lexical reranking, and extractive answers are deterministic test substitutes.
-
-The answer service enforces source citations independently of the LLM. JSONL
-telemetry records query and identity context, document IDs, retrieval and
-reranking scores, model, tokens, estimated cost, latency, and final answer.
-Thumbs feedback is persisted in SQLite with per-user isolation.
+indexing disabled. Local feature-hash embeddings, cosine search, lexical
+reranking, and extractive answers provide deterministic offline substitutes for
+the managed provider implementations.
 
 ## Testing and evaluation
 
