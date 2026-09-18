@@ -1,4 +1,5 @@
 import { AssistantConsole } from "./assistant-console";
+import bundledResults from "@/evaluation/bundled-results.json";
 
 const pipeline = [
   "Query",
@@ -9,11 +10,15 @@ const pipeline = [
   "Answer + citations",
 ];
 
+const formatRate = (rate: number) => `${Math.round(rate * 100)}%`;
+
 const metrics = [
-  ["Cases", "Bundled regression set"],
-  ["Retrieval", "Store-scoped evidence"],
-  ["Answers", "Deterministic local model"],
-  ["Citations", "Source document IDs"],
+  ["Cases", String(bundledResults.case_count)],
+  ["Retrieval hit rate", formatRate(bundledResults.retrieval_hit_rate)],
+  ["Correct-store retrieval", formatRate(bundledResults.correct_store_retrieval_rate)],
+  ["Abstention success", formatRate(bundledResults.abstention_success_rate)],
+  ["Answer correctness", formatRate(bundledResults.answer_correctness)],
+  ["Citation correctness", formatRate(bundledResults.citation_correctness)],
 ];
 
 export default function Home() {
@@ -71,6 +76,10 @@ export default function Home() {
             The bundled evaluation exercises retrieval, store isolation, abstention, answer
             correctness, and citations using a tiny deterministic synthetic regression set.
             These results are not evidence of real-world model accuracy or production performance.
+          </p>
+          <p className="citationNote">
+            Checked-in reference results, verified against the bundled dataset by the backend test
+            suite—not a live production evaluation.
           </p>
         </div>
         <dl className="metricGrid">

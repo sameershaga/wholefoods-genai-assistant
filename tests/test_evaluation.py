@@ -4,7 +4,20 @@ from pathlib import Path
 
 import pytest
 
-from store_assistant.evaluation import EvaluationError, evaluate, load_golden_cases
+from store_assistant.evaluation import (
+    EvaluationError,
+    evaluate,
+    load_golden_cases,
+)
+
+DETERMINISTIC_METRIC_NAMES = (
+    "case_count",
+    "retrieval_hit_rate",
+    "correct_store_retrieval_rate",
+    "abstention_success_rate",
+    "answer_correctness",
+    "citation_correctness",
+)
 
 
 def test_bundled_golden_evaluation_meets_local_quality_targets() -> None:
@@ -20,6 +33,15 @@ def test_bundled_golden_evaluation_meets_local_quality_targets() -> None:
     assert metrics.citation_correctness == 1.0
     assert metrics.average_latency_ms >= 0
     assert metrics.estimated_cost_per_query_usd == 0
+
+
+def test_checked_in_bundled_results_match_evaluation() -> None:
+    expected = json.loads(Path("evaluation/bundled-results.json").read_text(encoding="utf-8"))
+    metrics = evaluate(load_golden_cases("evaluation/golden.json"), "data/delivery_logs.json")
+
+    actual = {name: getattr(metrics, name) for name in DETERMINISTIC_METRIC_NAMES}
+
+    assert expected == actual
 
 
 def test_evaluation_indexes_recipe_source_for_recipe_case() -> None:
