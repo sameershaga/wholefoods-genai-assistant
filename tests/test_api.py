@@ -72,6 +72,7 @@ def test_query_propagates_auth_and_never_leaks_another_store(tmp_path: Path) -> 
         )
         assert response.status_code == 200
         assert response.json()["request_id"] == "request-1"
+        assert response.json()["store_id"] == "BROOKLYN"
         assert "12 cartons" in response.json()["answer"]
         assert "3 cartons" not in response.json()["answer"]
         assert response.json()["citations"] == ["delivery-brooklyn"]

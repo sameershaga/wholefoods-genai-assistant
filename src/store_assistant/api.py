@@ -30,6 +30,7 @@ class QueryResponse(BaseModel):
     """Grounded answer returned to an HTTP client."""
 
     request_id: str
+    store_id: str
     answer: str
     citations: list[str]
     model: str
@@ -101,6 +102,7 @@ def create_app(
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return QueryResponse(
             request_id=result.request_id,
+            store_id=result.user.store_id,
             answer=result.answer.text,
             citations=list(result.answer.citations),
             model=result.answer.model,
