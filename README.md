@@ -131,37 +131,38 @@ SKU resolves against Manhattan's synthetic records rather than Brooklyn's. Use
 path with signed requests and interactive feedback; it is not needed for this
 offline demo.
 
-## Local setup
+## Quickstart
 
-Python 3.12 or newer is required.
+### Prerequisites
+
+- Python 3.12 or newer
+- [uv](https://docs.astral.sh/uv/) for the locked local workflow
+- Docker with Compose v2 only if you prefer the container path
+
+Install the application and development dependencies from `uv.lock`:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install -e '.[dev]'
-uvicorn store_assistant.runtime:app --app-dir src
+uv sync --extra dev
 ```
 
-Check `http://127.0.0.1:8000/health`. Local tokens are
+No environment file or external credentials are needed for the offline path.
+The checked-in defaults use mock authentication and local implementations for
+embeddings, vector search, reranking, and answer generation. To customize data
+or providers, export selected values documented in [`.env.example`](.env.example)
+before startup; do not add credentials to source control.
+
+Start FastAPI locally:
+
+```bash
+uv run uvicorn store_assistant.runtime:app --app-dir src
+```
+
+Check `http://127.0.0.1:8000/health`, then follow the
+[three-minute demo](#three-minute-local-demo). The bundled mock tokens are
 `local-brooklyn-token`, `local-manhattan-token`, and
-`local-queens-token`. Brooklyn has 12 synthetic cartons of oat milk,
-Manhattan has 3, and Queens has 8.
+`local-queens-token`.
 
-```bash
-curl -s http://127.0.0.1:8000/v1/query \
-  -H 'Authorization: Bearer local-brooklyn-token' \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"Do we have oat milk?","filters":{"sku":"OAT001"}}'
-```
-
-Use the returned `request_id` for feedback:
-
-```bash
-curl -s http://127.0.0.1:8000/v1/feedback \
-  -H 'Authorization: Bearer local-brooklyn-token' \
-  -H 'Content-Type: application/json' \
-  -d '{"request_id":"<request-id>","rating":"up","comment":"Useful"}'
-```
+### Docker Compose
 
 For a one-command container startup with request logs and feedback persisted in
 a named volume, run:
@@ -282,11 +283,11 @@ the managed provider implementations.
 ## Testing and evaluation
 
 ```bash
-pytest
-ruff check .
-ruff format --check .
-mypy
-python -m store_assistant.evaluation
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy src/store_assistant
+uv run evaluate-store-assistant
 ```
 
 The GitHub Actions CI workflow runs these quality gates and the golden evaluation
