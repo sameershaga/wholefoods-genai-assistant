@@ -60,6 +60,12 @@ class FeedbackRequest(BaseModel):
     comment: str | None = Field(default=None, max_length=2_000)
 
 
+class DemoFeedbackRequest(FeedbackRequest):
+    """Public-demo feedback scoped through a server-side synthetic identity."""
+
+    store_id: str = Field(min_length=1, max_length=100)
+
+
 class FeedbackResponse(BaseModel):
     """Acknowledgement of persisted feedback."""
 
@@ -143,11 +149,25 @@ def create_app(
                 raise HTTPException(status_code=404, detail="Synthetic demo store not found")
             return run_query(token, payload)
 
+        @app.post("/v1/demo/feedback", response_model=FeedbackResponse)
+        def demo_feedback(payload: DemoFeedbackRequest) -> FeedbackResponse:
+            token = demo_tokens.get(payload.store_id)
+            if token is None:
+                raise HTTPException(status_code=404, detail="Synthetic demo store not found")
+            try:
+                user = auth_provider.authenticate(token)
+            except AuthenticationError as exc:
+                raise HTTPException(status_code=401, detail=str(exc)) from exc
+            return save_feedback(payload, user)
+
     @app.post("/v1/feedback", response_model=FeedbackResponse)
     def feedback(
         payload: FeedbackRequest,
         user: Annotated[UserContext, Depends(current_user)],
     ) -> FeedbackResponse:
+        return save_feedback(payload, user)
+
+    def save_feedback(payload: FeedbackRequest, user: UserContext) -> FeedbackResponse:
         try:
             saved = feedback_repository.save(
                 request_id=payload.request_id,

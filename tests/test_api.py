@@ -167,6 +167,20 @@ def test_demo_adapter_lists_allowlisted_stores_and_queries_with_trusted_identity
         assert response.status_code == 200
         assert response.json()["store_id"] == "BROOKLYN"
         assert "12 cartons" in response.json()["answer"]
+
+        vote = client.post(
+            "/v1/demo/feedback",
+            json={
+                "store_id": "BROOKLYN",
+                "request_id": response.json()["request_id"],
+                "rating": "up",
+                "comment": "Grounded and useful",
+            },
+        )
+        assert vote.status_code == 200
+        assert vote.json() == {"request_id": "request-1", "rating": "up"}
+        saved = feedback.get(request_id="request-1", user_id="manager-1")
+        assert saved is not None and saved.comment == "Grounded and useful"
     finally:
         feedback.close()
 
@@ -180,6 +194,12 @@ def test_demo_adapter_rejects_stores_outside_server_allowlist(tmp_path: Path) ->
         )
         assert response.status_code == 404
         assert response.json() == {"detail": "Synthetic demo store not found"}
+        feedback_response = client.post(
+            "/v1/demo/feedback",
+            json={"store_id": "MANHATTAN", "request_id": "request-1", "rating": "up"},
+        )
+        assert feedback_response.status_code == 404
+        assert feedback_response.json() == {"detail": "Synthetic demo store not found"}
     finally:
         feedback.close()
 
@@ -189,5 +209,6 @@ def test_demo_adapter_is_absent_unless_explicitly_enabled(tmp_path: Path) -> Non
     try:
         assert client.get("/v1/demo/stores").status_code == 404
         assert client.post("/v1/demo/query", json={}).status_code == 404
+        assert client.post("/v1/demo/feedback", json={}).status_code == 404
     finally:
         feedback.close()
