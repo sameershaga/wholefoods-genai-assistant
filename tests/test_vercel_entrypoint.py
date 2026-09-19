@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.routing import Mount
 
 
 def _load_vercel_app() -> FastAPI:
@@ -35,6 +36,22 @@ def test_vercel_adapter_serves_store_scoped_demo_end_to_end() -> None:
     assert answer.status_code == 200
     assert answer.json()["store_id"] == "BROOKLYN-01"
     assert answer.json()["citations"]
+
+
+def test_vercel_adapter_registers_concrete_api_prefixed_routes() -> None:
+    app = _load_vercel_app()
+    route_paths = set(app.openapi()["paths"])
+
+    assert "/api/v1/demo/stores" in route_paths
+    assert "/api/v1/demo/query" in route_paths
+    assert not any(isinstance(route, Mount) and route.path == "/api" for route in app.routes)
+
+
+def test_vercel_adapter_does_not_serve_unrewritten_application_routes() -> None:
+    with TestClient(_load_vercel_app()) as client:
+        response = client.get("/v1/demo/stores")
+
+    assert response.status_code == 404
 
 
 def test_vercel_adapter_exposes_bundled_src_layout() -> None:

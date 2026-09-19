@@ -28,4 +28,4 @@ demo_app = create_local_app(
 )
 
 app = FastAPI(title="Store Operations Assistant — Vercel Adapter")
-app.mount("/api", demo_app)
+app.include_router(demo_app.router, prefix="/api")

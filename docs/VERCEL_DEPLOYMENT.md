@@ -42,14 +42,15 @@ frontend installation check.
 Vercel's Python runtime recognizes the ASGI `app` exported by `api/index.py`.
 That adapter adds the bundled `src` directory to Python's import path before
 importing `store_assistant.runtime`; it does not depend on the repository package
-being installed as a wheel. It mounts the existing FastAPI application at `/api`.
+being installed as a wheel. It includes the existing FastAPI router with an `/api`
+prefix so Vercel can discover concrete full-path routes for the Python function.
 In production, the complete request path is:
 
 ```text
 browser /v1/demo/*
   -> Next.js rewrite /api/v1/demo/*
-  -> api/index.py FastAPI mount /api
-  -> existing FastAPI route /v1/demo/*
+  -> api/index.py concrete FastAPI route /api/v1/demo/*
+  -> existing route handler and dependencies
 ```
 
 The adapter pins bundled data paths relative to the repository, so its delivery
