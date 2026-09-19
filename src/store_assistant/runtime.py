@@ -203,7 +203,20 @@ def create_local_app(settings: LocalSettings | None = None) -> FastAPI:
             config.slack_user_tokens,
             feedback,
         )
-    return create_app(assistant, auth, feedback, slack_handler=slack_handler)
+    demo_store_tokens = None
+    if config.auth_provider == "mock":
+        demo_store_tokens = {
+            "BROOKLYN-01": "local-brooklyn-token",
+            "MANHATTAN-01": "local-manhattan-token",
+            "QUEENS-01": "local-queens-token",
+        }
+    return create_app(
+        assistant,
+        auth,
+        feedback,
+        slack_handler=slack_handler,
+        demo_store_tokens=demo_store_tokens,
+    )
 
 
 def _load_slack_user_tokens(raw_value: str) -> dict[str, str] | None:

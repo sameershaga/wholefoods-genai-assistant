@@ -251,12 +251,25 @@ def test_local_runtime_loads_synthetic_data_and_enforces_store_isolation(
             headers={"Authorization": "Bearer local-manhattan-token"},
             json={"query": "Do we have oat milk?", "filters": {"sku": "OAT001"}},
         )
+        demo_stores = client.get("/v1/demo/stores")
+        demo_queens = client.post(
+            "/v1/demo/query",
+            json={"store_id": "QUEENS-01", "query": "Do we have oat milk?"},
+        )
 
     assert brooklyn.status_code == 200
     assert "12 cartons" in brooklyn.json()["answer"]
     assert "3 cartons" not in brooklyn.json()["answer"]
     assert manhattan.status_code == 200
     assert "3 cartons" in manhattan.json()["answer"]
+    assert demo_stores.status_code == 200
+    assert {store["store_id"] for store in demo_stores.json()} == {
+        "BROOKLYN-01",
+        "MANHATTAN-01",
+        "QUEENS-01",
+    }
+    assert demo_queens.status_code == 200
+    assert demo_queens.json()["store_id"] == "QUEENS-01"
     assert (tmp_path / "requests.jsonl").exists()
     assert (tmp_path / "feedback.sqlite3").exists()
 
